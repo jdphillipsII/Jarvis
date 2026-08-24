@@ -95,3 +95,41 @@ def test_socket_transport_end_to_end(bus):
         assert got[0].source == "gesture"
     finally:
         src.stop()
+
+
+# ---- hierarchical patterns (lifted from Axon's internal_event_bus) ----
+
+def test_group_wildcard_matches_the_group_only(bus):
+    seen = []
+    bus.subscribe("model.*", lambda i: seen.append(i.intent))
+    bus.publish(Intent("model.orbit", "gesture", 0.9, {"dx": 1, "dy": 2}))
+    bus.publish(Intent("model.zoom", "gesture", 0.9, {"delta": 1}))
+    bus.publish(Intent("mic.mute", "voice", 1.0))          # different group
+    assert seen == ["model.orbit", "model.zoom"]
+
+
+def test_unsubscribe_stops_delivery(bus):
+    seen = []
+    sid = bus.subscribe("*", seen.append)
+    bus.publish(Intent("mic.mute", "voice", 1.0))
+    assert bus.unsubscribe(sid) is True
+    bus.publish(Intent("mic.mute", "voice", 1.0))
+    assert len(seen) == 1
+    assert bus.unsubscribe("nope") is False
+
+
+def test_a_handler_may_republish_without_deadlocking(bus):
+    """Snapshot-then-call: a handler that publishes must not lock the bus."""
+    seen = []
+    bus.subscribe("presence.arrived", lambda i: bus.publish(Intent("jarvis.speak", "system", 1.0, {"text": "Welcome back, sir."})))
+    bus.subscribe("jarvis.speak", lambda i: seen.append(i.args["text"]))
+    assert bus.publish(Intent("presence.arrived", "presence", 0.9))
+    assert seen == ["Welcome back, sir."]
+
+
+def test_stats_report_health(bus):
+    bus.subscribe("*", lambda i: None)
+    bus.publish(Intent("mic.mute", "voice", 1.0))
+    bus.publish(Intent("mic.mute", "gesture", 0.1))        # below floor
+    s = bus.stats()
+    assert s["subscribers"] == 1 and s["delivered"] == 1 and s["rejected"] == 1

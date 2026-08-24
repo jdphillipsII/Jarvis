@@ -19,25 +19,44 @@ log = logging.getLogger("jarvis.bus")
 Handler = Callable[[Intent], None]
 
 
+def matches(pattern: str, name: str) -> bool:
+    """Hierarchical match:  '*' -> everything,  'model.*' -> the model group."""
+    if pattern == "*":
+        return True
+    if pattern.endswith(".*"):
+        return name.startswith(pattern[:-1])
+    return pattern == name
+
+
 class Bus:
-    """Subscribers register per-intent or with '*' for everything."""
+    """Subscribers register an exact intent, a 'group.*' prefix, or '*'."""
 
     def __init__(self, registry: Optional[Registry] = None, enforce: bool = True):
         self.registry = registry
         self.enforce = enforce
-        self._subs: Dict[str, List[Handler]] = {}
+        self._subs: List[Tuple[str, str, Handler]] = []   # (id, pattern, handler)
         self._lock = threading.RLock()
+        self._n = 0
+        self.delivered = 0
         self.rejected: List[Tuple[Intent, str]] = []
         self.errors: List[Tuple[str, BaseException]] = []
 
     # ---- wiring ----
-    def subscribe(self, pattern: str, handler: Handler) -> Handler:
+    def subscribe(self, pattern: str, handler: Handler, subscriber_id: str = "") -> str:
         with self._lock:
-            self._subs.setdefault(pattern, []).append(handler)
-        return handler
+            self._n += 1
+            sid = subscriber_id or f"sub-{self._n}"
+            self._subs.append((sid, pattern, handler))
+        return sid
+
+    def unsubscribe(self, subscriber_id: str) -> bool:
+        with self._lock:
+            before = len(self._subs)
+            self._subs = [s for s in self._subs if s[0] != subscriber_id]
+            return len(self._subs) != before
 
     def on(self, pattern: str) -> Callable[[Handler], Handler]:
-        """Decorator form:  @bus.on("workspace.next")"""
+        """Decorator form:  @bus.on("workspace.*")"""
         def deco(fn: Handler) -> Handler:
             self.subscribe(pattern, fn)
             return fn
@@ -45,7 +64,7 @@ class Bus:
 
     # ---- dispatch ----
     def publish(self, intent: Intent) -> bool:
-        """Returns True if delivered, False if the registry refused it."""
+        """True if delivered, False if the registry refused it."""
         if self.enforce and self.registry is not None:
             reason: Optional[Rejection] = self.registry.check(intent)
             if reason:
@@ -53,25 +72,33 @@ class Bus:
                 log.info("rejected: %s", reason)
                 return False
 
+        # Snapshot under the lock, then call OUTSIDE it, so a handler that
+        # re-publishes cannot deadlock the bus.
         with self._lock:
-            handlers = list(self._subs.get(intent.intent, ())) + list(self._subs.get("*", ()))
+            handlers = [(sid, fn) for sid, pat, fn in self._subs
+                        if matches(pat, intent.intent)]
 
-        for fn in handlers:
+        for sid, fn in handlers:
             try:
                 fn(intent)
-            except Exception as exc:                      # isolate: one bad actuator
-                name = getattr(fn, "__name__", repr(fn))  # must not starve the rest
-                self.errors.append((name, exc))
-                log.exception("handler %s failed on %s", name, intent.intent)
+            except Exception as exc:                    # isolate: one bad actuator
+                self.errors.append((sid, exc))          # must not starve the rest
+                log.exception("handler %s failed on %s", sid, intent.intent)
+        self.delivered += 1
         return True
 
     def publish_line(self, line: str) -> bool:
-        """Parse a wire line and publish it. Malformed input is dropped, not raised."""
+        """Parse a wire line and publish. Malformed input is dropped, not raised."""
         try:
             return self.publish(Intent.from_line(line))
         except InvalidIntent as exc:
             log.warning("dropped malformed intent: %s", exc)
             return False
+
+    def stats(self) -> Dict[str, int]:
+        with self._lock:
+            return {"subscribers": len(self._subs), "delivered": self.delivered,
+                    "rejected": len(self.rejected), "errors": len(self.errors)}
 
 
 class SocketSource(threading.Thread):
