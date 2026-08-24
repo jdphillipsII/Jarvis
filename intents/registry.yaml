@@ -1,0 +1,20 @@
+# The allowlist. If it's not here, no actuator acts on it.
+workspace:
+  workspace.next:     {desc: "scroll Karousel strip right",    floor: 0.85}
+  workspace.prev:     {desc: "scroll Karousel strip left",     floor: 0.85}
+  workspace.activity: {desc: "switch Activity", args: [name],  floor: 0.90}
+window:
+  window.dismiss:     {desc: "minimize/close focused surface", floor: 0.90}
+  window.focus:       {desc: "focus under-cursor window",      floor: 0.85}
+model:
+  model.orbit:        {desc: "rotate model", args: [dx, dy],   floor: 0.80}
+  model.pan:          {desc: "pan model",    args: [dx, dy],   floor: 0.80}
+  model.zoom:         {desc: "zoom model",   args: [delta],    floor: 0.80}
+mic:
+  mic.mute:           {desc: "toggle mic mute",                floor: 0.95}
+jarvis:
+  jarvis.interrupt:   {desc: "stop TTS mid-sentence",          floor: 0.95}
+  jarvis.speak:       {desc: "speak text", args: [text],       floor: 1.00}
+presence:
+  presence.arrived:   {desc: "user sat down",                  floor: 0.70}
+  presence.left:      {desc: "user left desk",                 floor: 0.70}

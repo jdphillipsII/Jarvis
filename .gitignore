@@ -1,0 +1,9 @@
+# Never commit models or venvs — huge and machine-specific
+models/
+*.gguf
+*.onnx
+*.onnx.json
+.venvs/
+__pycache__/
+*.pyc
+config/secrets.env
