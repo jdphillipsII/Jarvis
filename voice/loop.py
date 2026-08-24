@@ -9,12 +9,16 @@
 
 Run:  source .venvs/voice/bin/activate && python voice/loop.py
 """
-import os, sys, time, queue, shutil, subprocess, tempfile
+import os, sys, time, shutil, subprocess, tempfile
+from collections import deque
 import numpy as np, sounddevice as sd, requests
 from openwakeword.model import Model as WakeModel
 from faster_whisper import WhisperModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from core.endpointing import Endpointer, EndpointerConfig, VoiceEvent   # noqa: E402
+from core.rms_vad import RmsVad                                          # noqa: E402
 
 def cfg(key, default):
     """Read config/jarvis.env without extra deps."""
@@ -63,22 +67,57 @@ def say(text):
         os.path.exists(wav) and os.unlink(wav)
 
 # ---- audio in ---------------------------------------------------------------
-def record_until_silence(max_s=12, silence_s=1.0, thresh=0.010):
-    """Capture mono 16k until ~1s of quiet, or max_s. Returns float32 [-1,1]."""
-    q, chunks, quiet_for, t0 = queue.Queue(), [], 0.0, time.time()
-    block = int(SR * 0.05)   # 50 ms
-    def cb(indata, frames, tinfo, status): q.put(indata.copy())
+VAD_WINDOW = 512                 # 32 ms @ 16 kHz — matches EndpointerConfig.window_ms
+PREROLL_WINDOWS = 8              # ~256 ms kept before speech starts, so the
+                                 # first word isn't clipped off the front
+
+def _rms(block) -> float:
+    return float(np.sqrt(np.mean(block.astype(np.float32) ** 2)))
+
+
+def calibrate(vad: RmsVad, seconds: float = 0.6) -> float:
+    """Measure the room once at startup so thresholds are relative, not absolute."""
+    n = int(seconds * SR / VAD_WINDOW)
     with sd.InputStream(samplerate=SR, channels=1, dtype="float32",
-                        blocksize=block, callback=cb):
+                        blocksize=VAD_WINDOW) as s:
+        floor = vad.calibrate(_rms(s.read(VAD_WINDOW)[0]) for _ in range(n))
+    return floor
+
+
+def record_turn(vad: RmsVad, max_s: float = 15.0):
+    """Capture one utterance, ending on the endpointer's SPEECH_END.
+
+    Unlike a plain silence timer, a pause mid-sentence does not end the turn -
+    see core/endpointing.py.
+    """
+    ep = Endpointer(EndpointerConfig(threshold=0.5, min_speech_ms=192,
+                                     min_silence_ms=800, window_ms=32))
+    preroll, frames, started = deque(maxlen=PREROLL_WINDOWS), [], False
+    t0 = time.time()
+
+    with sd.InputStream(samplerate=SR, channels=1, dtype="float32",
+                        blocksize=VAD_WINDOW) as stream:
         print("  listening...")
         while time.time() - t0 < max_s:
-            buf = q.get()
-            chunks.append(buf)
-            rms = float(np.sqrt(np.mean(buf ** 2)))
-            quiet_for = quiet_for + 0.05 if rms < thresh else 0.0
-            if quiet_for >= silence_s and len(chunks) > 10:
+            block, _ = stream.read(VAD_WINDOW)
+            event = ep.feed(vad.probability(_rms(block)))
+
+            if started:
+                frames.append(block)
+            else:
+                preroll.append(block)
+
+            if event is VoiceEvent.SPEECH_START:
+                started = True
+                frames.extend(preroll)      # recover the clipped onset
+                preroll.clear()
+            elif event is VoiceEvent.SPEECH_END and started:
                 break
-    return np.concatenate(chunks).flatten()
+
+    if not frames:
+        return np.zeros(0, dtype=np.float32)
+    return np.concatenate(frames).flatten()
+
 
 # ---- think ------------------------------------------------------------------
 def think(user_text, history):
@@ -110,6 +149,8 @@ def main():
     print("loading models...")
     wake = load_wake()
     stt  = WhisperModel("small.en", device="cpu", compute_type="int8")
+    vad  = RmsVad()
+    print(f"calibrating room... floor={calibrate(vad):.5f}")
     history = []
     say("Online, sir.")
 
@@ -122,8 +163,12 @@ def main():
                 continue
             print("\n[woke]")
             stream.stop()
-            pcm = record_until_silence()
+            pcm = record_turn(vad)
             stream.start()
+            if pcm.size == 0:                 # woke on a noise, heard nothing
+                print("  (no speech)")
+                wake.reset()
+                continue
             wake.reset()
 
             segs, _ = stt.transcribe(pcm, language="en", beam_size=1)
