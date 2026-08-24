@@ -17,6 +17,12 @@ Nothing talks to the compositor directly.
 
 Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
 
+## Presence
+
+    # needs: uv pip install opencv-python mediapipe   (in a 3.11 venv)
+    python vision/presence_daemon.py --dry-run        # prints transitions
+    JARVIS_CAM=http://PHONE_IP:8080/video python vision/presence_daemon.py
+
 ## Quick start
 
     ./scripts/check-rocm.sh          # GPU gate — must pass first
@@ -29,8 +35,8 @@ Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
 - [x] **0** Fedora install
 - [x] **1** ROCm gate — `gfx1100` visible, Ollama generating on GPU
 - [x] **2** Voice loop — wake → whisper → Ollama → Piper (Alan)
-- [ ] **3** Presence detection — greet on arrival, hush when away
-- [ ] **4** Proactive daemon — speaks unprompted from journald / sensors / calendar
+- [x] **3** Presence detection — greet on arrival, hush when away
+- [x] **4** Proactive daemon — GPU / disk / systemd watchers, judged by policy
 - [ ] **5** Plasma layer — Activities (COMMAND / WORKSHOP / FORGE), Karousel, HUD
 - [ ] **6** Gestures — camera → MediaPipe → intents
 
