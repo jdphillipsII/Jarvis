@@ -25,10 +25,33 @@ Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
 
 ## Quick start
 
-    ./scripts/check-rocm.sh          # GPU gate — must pass first
     bash setup/voice-setup.sh        # venv + wake model + Alan voice
     source .venvs/voice/bin/activate
-    python voice/loop.py             # say "hey jarvis"
+    ./cli.py doctor                  # checks every prerequisite, names the fix
+    ./cli.py up                      # voice + presence + watchers
+
+## The `jarvis` command
+
+| command | what it does |
+|---|---|
+| `doctor` | check every prerequisite and print the exact fix for each |
+| `status` | GPU temperature, disk, load |
+| `tools` | what JARVIS can do at the current agency, and how many are hidden above it |
+| `listen` | the voice loop |
+| `presence` | the camera presence daemon |
+| `watch` | the proactive daemon |
+| `up` | all three |
+| `install` | write systemd user units so it starts with your session |
+
+## Tools
+
+Three gates before anything runs: **agency** (a tool above the configured
+level is never shown to the model, so it cannot ask for what it cannot see),
+**schema** (arguments validated before the handler is entered), and **consent**
+(anything mutating returns a proposal; the user confirms).
+
+Agency is set by `JARVIS_AGENCY` in `config/jarvis.env` and is the user's to
+raise. An unrecognised value fails closed to `advisory`.
 
 ## Build order
 

@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""The `jarvis` command.
+
+    jarvis status          what's installed, configured and reachable
+    jarvis doctor          check every prerequisite and say what's missing
+    jarvis tools           list what JARVIS can do at the current agency
+    jarvis listen          the voice loop
+    jarvis presence        the camera presence daemon
+    jarvis watch           the proactive daemon
+    jarvis up              everything at once
+    jarvis install         write systemd user units
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ROOT)
+
+GREEN, RED, DIM, OFF = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
+OK, NO = f"{GREEN}ok{OFF}", f"{RED}missing{OFF}"
+
+
+def _cfg(key: str, default: str = "") -> str:
+    path = os.path.join(ROOT, "config/jarvis.env")
+    if os.path.exists(path):
+        for line in open(path):
+            line = line.split("#", 1)[0].strip()
+            if line.startswith(key + "="):
+                return line.split("=", 1)[1].strip()
+    return default
+
+
+def _venv_python() -> str:
+    p = os.path.join(ROOT, ".venvs/voice/bin/python")
+    return p if os.path.exists(p) else sys.executable
+
+
+# ---- commands ---------------------------------------------------------------
+
+def cmd_doctor(_) -> int:
+    print(f"{DIM}jarvis doctor{OFF}\n")
+    failures = 0
+
+    def check(label: str, good: bool, hint: str = "") -> None:
+        nonlocal failures
+        print(f"  {label:<28} {OK if good else NO}")
+        if not good and hint:
+            print(f"  {DIM}{'':<28} -> {hint}{OFF}")
+            failures += 1
+
+    groups = subprocess.run(["id", "-nG"], capture_output=True, text=True).stdout.split()
+    check("render/video groups", {"render", "video"} <= set(groups),
+          "sudo usermod -aG video,render $USER  then reboot")
+    check("rocminfo", shutil.which("rocminfo") is not None,
+          "sudo dnf install -y rocminfo rocm-smi")
+    if shutil.which("rocminfo"):
+        info = subprocess.run(["rocminfo"], capture_output=True, text=True).stdout
+        check("gfx1100 (7900 XTX)", "gfx1100" in info, "GPU not visible to ROCm")
+    check("ollama", shutil.which("ollama") is not None,
+          "curl -fsSL https://ollama.com/install.sh | sh")
+    check("audio player", any(shutil.which(p) for p in ("pw-play", "paplay", "aplay")),
+          "sudo dnf install -y pipewire-utils")
+    check("voice venv", os.path.exists(os.path.join(ROOT, ".venvs/voice/bin/python")),
+          "bash setup/voice-setup.sh")
+    voice = _cfg("JARVIS_VOICE", "en_GB-alan-medium")
+    check(f"piper voice ({voice})",
+          os.path.exists(os.path.join(ROOT, "models/piper", voice + ".onnx")),
+          f"python -m piper.download_voices {voice} --download-dir models/piper")
+
+    print(f"\n  agency: {DIM}{_cfg('JARVIS_AGENCY', 'advisory')}{OFF}"
+          f"   model: {DIM}{_cfg('JARVIS_CHAT_MODEL', '?')}{OFF}")
+    print(f"\n{'all clear, sir.' if not failures else f'{failures} thing(s) to fix.'}")
+    return 1 if failures else 0
+
+
+def cmd_tools(_) -> int:
+    from core.toolbox import Toolbox
+    from core.tools import Agency
+    from daemon.toolbox.builtin import build
+    agency = Agency.parse(_cfg("JARVIS_AGENCY", "advisory"))
+    box = Toolbox(registry=build(), agency=agency)
+    print(f"{DIM}agency: {agency.name.lower()}{OFF}\n")
+    for tool in sorted(box.registry.available(agency), key=lambda t: t.name):
+        mark = "!" if tool.mutates else " "
+        print(f" {mark} {tool.name:<22} {tool.description}")
+    hidden = len(box.registry) - len(box.registry.available(agency))
+    print(f"\n{DIM}! = requires confirmation"
+          + (f"   ({hidden} tool(s) hidden above this agency)" if hidden else "")
+          + OFF)
+    return 0
+
+
+def cmd_status(_) -> int:
+    from daemon.toolbox.builtin import build
+    from core.toolbox import Toolbox
+    from core.tools import Agency
+    box = Toolbox(registry=build(), agency=Agency.parse(_cfg("JARVIS_AGENCY")))
+    r = box.invoke("system.status")
+    if not r.ok:
+        print(f"{RED}{r.error}{OFF}")
+        return 1
+    for key, value in sorted(r.value.items()):
+        print(f"  {key:<16} {value}")
+    return 0
+
+
+def _exec(script: str, extra) -> int:
+    return subprocess.call([_venv_python(), os.path.join(ROOT, script), *extra])
+
+
+def cmd_listen(a) -> int:   return _exec("voice/loop.py", a.extra)
+def cmd_presence(a) -> int: return _exec("vision/presence_daemon.py", a.extra)
+
+
+def cmd_watch(_) -> int:
+    from core.bus import Bus, SocketSource
+    from core.policy import SpeakPolicy
+    from core.registry import Registry
+    from daemon.greeter import Greeter
+    from daemon.proactive import ProactiveDaemon
+    import daemon.watchers  # noqa: F401  — registers the watchers
+    import time
+
+    bus = Bus(registry=Registry.load())
+    d = ProactiveDaemon(bus=bus, policy=SpeakPolicy())
+    Greeter(bus=bus, briefing=d.briefing, policy=d.policy).attach()
+    bus.subscribe("jarvis.*", lambda i: print(f"  [{i.intent}] {i.args['text']}"
+                                              f"  {DIM}({i.args['reason']}){OFF}"))
+    sock = os.environ.get("JARVIS_SOCKET", f"/run/user/{os.getuid()}/jarvis.sock")
+    try:
+        SocketSource(bus, sock).start()
+        print(f"{DIM}bus listening on {sock}{OFF}")
+    except OSError as exc:
+        print(f"{DIM}socket unavailable ({exc}); in-process only{OFF}")
+    print("watching. ctrl-c to stop.\n")
+    try:
+        while True:
+            d.tick()
+            time.sleep(5)
+    except KeyboardInterrupt:
+        print("\nstopping.")
+    return 0
+
+
+def cmd_install(_) -> int:
+    unit_dir = os.path.expanduser("~/.config/systemd/user")
+    os.makedirs(unit_dir, exist_ok=True)
+    py = _venv_python()
+    units = {
+        "jarvis-watch.service": ("JARVIS proactive daemon", f"{py} {ROOT}/cli.py watch"),
+        "jarvis-presence.service": ("JARVIS presence detection",
+                                    f"{py} {ROOT}/vision/presence_daemon.py"),
+    }
+    for name, (desc, cmd) in units.items():
+        with open(os.path.join(unit_dir, name), "w") as fh:
+            fh.write(f"""[Unit]
+Description={desc}
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart={cmd}
+Restart=on-failure
+RestartSec=5
+WorkingDirectory={ROOT}
+
+[Install]
+WantedBy=default.target
+""")
+        print(f"  wrote {unit_dir}/{name}")
+    print("\n  systemctl --user daemon-reload")
+    print("  systemctl --user enable --now jarvis-watch jarvis-presence")
+    return 0
+
+
+def cmd_up(a) -> int:
+    procs = []
+    for label, script in (("watch", "cli.py watch"),
+                          ("presence", "vision/presence_daemon.py"),
+                          ("listen", "voice/loop.py")):
+        procs.append(subprocess.Popen([_venv_python(),
+                                       *os.path.join(ROOT, script).split()]))
+        print(f"  started {label}")
+    print("\nctrl-c to stop everything.")
+    try:
+        for p in procs:
+            p.wait()
+    except KeyboardInterrupt:
+        for p in procs:
+            p.terminate()
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="jarvis", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for name, fn, takes_extra in (
+            ("doctor", cmd_doctor, False), ("status", cmd_status, False),
+            ("tools", cmd_tools, False), ("listen", cmd_listen, True),
+            ("presence", cmd_presence, True), ("watch", cmd_watch, False),
+            ("install", cmd_install, False), ("up", cmd_up, False)):
+        p = sub.add_parser(name, help=fn.__doc__ or name)
+        if takes_extra:
+            p.add_argument("extra", nargs="*")
+        p.set_defaults(fn=fn)
+    args = ap.parse_args()
+    return args.fn(args) or 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
