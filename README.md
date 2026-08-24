@@ -58,6 +58,26 @@ Only answerable offers change the state; a badge is just a mark in the feed.
 The page falls back to a self-running demo when no daemon is attached, so the
 design can be reviewed anywhere.
 
+## Gestures
+
+    python vision/gesture_daemon.py --dry-run --preview
+
+| gesture | intent |
+|---|---|
+| open palm | `window.dismiss` |
+| fist | `mic.mute` |
+| point | `window.focus` |
+| two fingers | `workspace.next` |
+| pinch + move | `model.orbit` (continuous) |
+
+Everything is normalised against hand span, so a hand at arm's length and a
+hand near the lens classify identically and produce the same drag deltas.
+Pinch bypasses the debouncer — it is a continuous drag, not a one-shot — and
+holding still publishes nothing rather than spraying zero-deltas.
+
+An unrecognised pose returns `None` rather than a guess, which breaks the
+debouncer's streak; guessing would fire an action.
+
 ## Presence
 
     # needs: uv pip install opencv-python mediapipe   (in a 3.11 venv)
@@ -81,6 +101,7 @@ design can be reviewed anywhere.
 | `chat` | text-mode conversation with the full tool loop — no mic needed |
 | `listen` | the voice loop |
 | `presence` | the camera presence daemon |
+| `gestures` | the camera gesture daemon |
 | `watch` | the proactive daemon (also serves the HUD) |
 | `hud` | open the HUD in a browser |
 | `up` | all three |
@@ -125,7 +146,7 @@ becomes something it corrects on the next round instead of a dead end.
 - [x] **4** Proactive daemon — GPU / disk / systemd watchers, judged by policy
 - [x] **5a** HUD — arc-reactor state ring, offers you can answer, live telemetry
 - [ ] **5b** Plasma layer — Activities (COMMAND / WORKSHOP / FORGE), Karousel
-- [ ] **6** Gestures — camera → MediaPipe → intents
+- [x] **6** Gestures — camera → MediaPipe → intents
 
 ## Agency level
 

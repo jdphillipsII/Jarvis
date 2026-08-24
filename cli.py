@@ -7,6 +7,7 @@
     jarvis chat            text-mode conversation with the full tool loop
     jarvis listen          the voice loop
     jarvis presence        the camera presence daemon
+    jarvis gestures        the camera gesture daemon
     jarvis watch           the proactive daemon (also serves the HUD)
     jarvis hud             open the HUD in a browser
     jarvis up              everything at once
@@ -163,6 +164,7 @@ def _exec(script: str, extra) -> int:
 
 def cmd_listen(a) -> int:   return _exec("voice/loop.py", a.extra)
 def cmd_presence(a) -> int: return _exec("vision/presence_daemon.py", a.extra)
+def cmd_gestures(a) -> int: return _exec("vision/gesture_daemon.py", a.extra)
 
 
 def cmd_watch(_) -> int:
@@ -273,7 +275,8 @@ def main() -> int:
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
             ("tools", cmd_tools, False), ("chat", cmd_chat, False),
             ("listen", cmd_listen, True),
-            ("presence", cmd_presence, True), ("watch", cmd_watch, False),
+            ("presence", cmd_presence, True), ("gestures", cmd_gestures, True),
+            ("watch", cmd_watch, False),
             ("install", cmd_install, False), ("up", cmd_up, False)):
         p = sub.add_parser(name, help=fn.__doc__ or name)
         if takes_extra:
