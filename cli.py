@@ -4,6 +4,7 @@
     jarvis status          what's installed, configured and reachable
     jarvis doctor          check every prerequisite and say what's missing
     jarvis tools           list what JARVIS can do at the current agency
+    jarvis chat            text-mode conversation with the full tool loop
     jarvis listen          the voice loop
     jarvis presence        the camera presence daemon
     jarvis watch           the proactive daemon
@@ -109,6 +110,42 @@ def cmd_status(_) -> int:
     return 0
 
 
+def cmd_chat(_) -> int:
+    """Text-mode conversation with the full tool loop — no mic, no speakers."""
+    from core.agent import Agent
+    from core.bus import Bus
+    from core.ollama import OllamaChat
+    from core.registry import Registry
+    from core.toolbox import Toolbox
+    from core.tools import Agency
+    from daemon.toolbox.builtin import build
+
+    agency = Agency.parse(_cfg("JARVIS_AGENCY", "advisory"))
+    bus = Bus(registry=Registry.load())
+    bus.subscribe("*", lambda i: print(f"  {DIM}[bus] {i.intent} {i.args}{OFF}"))
+    box = Toolbox(registry=build(bus=bus), agency=agency)
+    agent = Agent(toolbox=box, chat=OllamaChat(_cfg("JARVIS_CHAT_MODEL", "qwen2.5:7b")))
+
+    print(f"{DIM}agency={agency.name.lower()}  "
+          f"tools={len(box.registry.available(agency))}  (ctrl-d to exit){OFF}\n")
+    while True:
+        try:
+            text = input("you> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not text:
+            continue
+        try:
+            turn = agent.say(text)
+        except Exception as exc:
+            print(f"  {RED}{exc}{OFF}")
+            continue
+        if turn.tools_used:
+            print(f"  {DIM}tools: {', '.join(turn.tools_used)}{OFF}")
+        print(f"JARVIS> {turn.text}\n")
+
+
 def _exec(script: str, extra) -> int:
     return subprocess.call([_venv_python(), os.path.join(ROOT, script), *extra])
 
@@ -202,7 +239,8 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn, takes_extra in (
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
-            ("tools", cmd_tools, False), ("listen", cmd_listen, True),
+            ("tools", cmd_tools, False), ("chat", cmd_chat, False),
+            ("listen", cmd_listen, True),
             ("presence", cmd_presence, True), ("watch", cmd_watch, False),
             ("install", cmd_install, False), ("up", cmd_up, False)):
         p = sub.add_parser(name, help=fn.__doc__ or name)

@@ -37,6 +37,7 @@ Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
 | `doctor` | check every prerequisite and print the exact fix for each |
 | `status` | GPU temperature, disk, load |
 | `tools` | what JARVIS can do at the current agency, and how many are hidden above it |
+| `chat` | text-mode conversation with the full tool loop — no mic needed |
 | `listen` | the voice loop |
 | `presence` | the camera presence daemon |
 | `watch` | the proactive daemon |
@@ -52,6 +53,26 @@ level is never shown to the model, so it cannot ask for what it cannot see),
 
 Agency is set by `JARVIS_AGENCY` in `config/jarvis.env` and is the user's to
 raise. An unrecognised value fails closed to `advisory`.
+
+### Tool calls in conversation
+
+    you> how's the GPU?
+      tools: system.status
+    JARVIS> Sixty-one degrees, sir. Nothing to worry about.
+
+    you> note that I should order the camera mount
+      tools: notes.append
+    JARVIS> Append a line to the notes file (text='order the camera mount'). Shall I, sir?
+    you> yes
+    JARVIS> noted: order the camera mount
+
+Mutating tools never run inside the loop — they return a proposal and JARVIS
+asks. Only a bare yes counts: "yes but call it something else" is a new
+request, not consent. Moving on to another subject cancels the offer, so a
+later unrelated "yes" cannot fire it.
+
+Tool errors are fed back to the model rather than raised, so a wrong argument
+becomes something it corrects on the next round instead of a dead end.
 
 ## Build order
 

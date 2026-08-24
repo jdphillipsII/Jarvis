@@ -19,6 +19,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from core.endpointing import Endpointer, EndpointerConfig, VoiceEvent   # noqa: E402
 from core.rms_vad import RmsVad                                          # noqa: E402
+from core.agent import Agent, PERSONA                                    # noqa: E402
+from core.interrupt import is_pause_utterance                            # noqa: E402
+from core.ollama import OllamaChat                                       # noqa: E402
+from core.registry import Registry                                       # noqa: E402
+from core.bus import Bus                                                 # noqa: E402
+from core.toolbox import Toolbox                                         # noqa: E402
+from core.tools import Agency                                            # noqa: E402
+from daemon.toolbox.builtin import build as build_tools                  # noqa: E402
 
 def cfg(key, default):
     """Read config/jarvis.env without extra deps."""
@@ -37,14 +45,10 @@ OLLAMA     = "http://127.0.0.1:11434/api/chat"
 SR         = 16000          # openWakeWord and whisper both want 16 kHz mono
 WAKE_BLOCK = 1280           # 80 ms @ 16 kHz — oWW's expected frame size
 
-PERSONA = (
-    "You are JARVIS, a dry, clipped British AI assistant. Address the user as 'sir'. "
-    "Be concise - one or two sentences unless asked to expand. Mild wit, never chirpy, "
-    "never say you are an AI or a language model. If you don't know, say so plainly."
-)
 
 # ---- audio out --------------------------------------------------------------
 # Fedora is PipeWire; aplay may be absent. Pick whatever exists, once.
+DIM, OFF = "\033[2m", "\033[0m"
 PLAYER = next((p for p in ("pw-play", "paplay", "aplay") if shutil.which(p)), None)
 
 def say(text):
@@ -119,15 +123,6 @@ def record_turn(vad: RmsVad, max_s: float = 15.0):
     return np.concatenate(frames).flatten()
 
 
-# ---- think ------------------------------------------------------------------
-def think(user_text, history):
-    msgs = ([{"role": "system", "content": PERSONA}] + history +
-            [{"role": "user", "content": user_text}])
-    r = requests.post(OLLAMA, json={"model": CHAT_MODEL, "messages": msgs,
-                                    "stream": False}, timeout=120)
-    r.raise_for_status()
-    return r.json()["message"]["content"]
-
 # ---- main -------------------------------------------------------------------
 def load_wake():
     """Fetch the melspec/embedding models on first run, then build the detector."""
@@ -141,6 +136,15 @@ def load_wake():
             print("  [wake model download note]", e)
     return WakeModel(wakeword_models=["hey_jarvis"])
 
+def build_agent() -> Agent:
+    agency = Agency.parse(cfg("JARVIS_AGENCY", "advisory"))
+    bus = Bus(registry=Registry.load())
+    box = Toolbox(registry=build_tools(bus=bus), agency=agency)
+    print(f"agency={agency.name.lower()}  "
+          f"tools={[t.name for t in box.registry.available(agency)]}")
+    return Agent(toolbox=box, chat=OllamaChat(CHAT_MODEL), persona=PERSONA)
+
+
 def main():
     if not os.path.exists(PIPER_ONNX):
         sys.exit(f"Voice missing: {PIPER_ONNX}\n"
@@ -151,7 +155,7 @@ def main():
     stt  = WhisperModel("small.en", device="cpu", compute_type="int8")
     vad  = RmsVad()
     print(f"calibrating room... floor={calibrate(vad):.5f}")
-    history = []
+    agent = build_agent()
     say("Online, sir.")
 
     with sd.InputStream(samplerate=SR, channels=1, dtype="int16",
@@ -165,24 +169,50 @@ def main():
             stream.stop()
             pcm = record_turn(vad)
             stream.start()
-            if pcm.size == 0:                 # woke on a noise, heard nothing
+            if pcm.size == 0:
                 print("  (no speech)")
                 wake.reset()
                 continue
-            wake.reset()
 
             segs, _ = stt.transcribe(pcm, language="en", beam_size=1)
             text = " ".join(s.text for s in segs).strip()
+            wake.reset()
             if not text:
                 continue
             print(f"  you: {text}")
+
+            # A stop command is handled here, never sent to the model.
+            if is_pause_utterance(text):
+                print("  (stood down)")
+                continue
+
             try:
-                reply = think(text, history[-6:])
-            except Exception as e:
-                say("I couldn't reach the model, sir."); print("  ", e); continue
-            say(reply)
-            history += [{"role": "user", "content": text},
-                        {"role": "assistant", "content": reply}]
+                turn = agent.say(text)
+            except Exception as exc:
+                say("I couldn't reach the model, sir.")
+                print("  ", exc)
+                continue
+
+            if turn.tools_used:
+                print(f"  {DIM}tools: {', '.join(turn.tools_used)}{OFF}")
+            say(turn.text)
+            # If that was a question, the next utterance answers it: keep the
+            # mic open instead of making the user say the wake word again.
+            while turn.awaiting_confirmation:
+                pcm = record_turn(vad, max_s=8.0)
+                if pcm.size == 0:
+                    say("I'll leave it, sir.")
+                    agent.toolbox.decline(agent.pending.id)
+                    agent.pending = None
+                    break
+                segs, _ = stt.transcribe(pcm, language="en", beam_size=1)
+                answer = " ".join(s.text for s in segs).strip()
+                if not answer:
+                    continue
+                print(f"  you: {answer}")
+                turn = agent.say(answer)
+                say(turn.text)
+
 
 if __name__ == "__main__":
     try:
