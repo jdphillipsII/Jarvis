@@ -1,290 +1,408 @@
 <title>JARVIS Command Ring</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500&family=JetBrains+Mono:wght@300;400&family=Saira:wght@100;200&display=swap">
 <style>
-  /* Single committed visual world: this is an always-on operational surface
-     in a dark room, not a document. Every colour is painted explicitly. */
+  /* A single committed visual world: light drawn on black, never paint on a
+     surface. Nothing here has a fill. Framing is corner brackets, never a box. */
   :root{
-    --ground:#09090b; --raised:#121214; --line:#1f1f23;
-    --ink:#fafafa; --ink-2:#a1a1aa; --ink-3:#52525b;
-    --cyan:#00e5ff; --amber:#ffb000; --red:#dc2626;
-    --accent:var(--cyan);
-    --sans:'Inter',system-ui,sans-serif;
+    --void:#04060A; --lift:#0A0F14;
+    --core:#D8FCFF; --cyan:#7FF3FF; --cyan-dim:#0891A8;
+    --amber:#FFB000; --red:#FF2D2D; --quiet:#3F6F7A;
+    --ink:#8FA8B0; --ink-dim:#4A5F68;
+    --hue:var(--cyan);
+    --tech:'Chakra Petch',system-ui,sans-serif;
+    --num:'Saira',system-ui,sans-serif;
     --mono:'JetBrains Mono',ui-monospace,monospace;
-    --display:'Fraunces',Georgia,serif;
   }
-  [data-state="elevated"]{ --accent:var(--amber); --ground:#121214; }
-  [data-state="critical"]{ --accent:var(--red); }
-  [data-state="focused"] { --accent:#3f6f7a; }
+  [data-state="elevated"]{ --hue:var(--amber) }
+  [data-state="critical"]{ --hue:var(--red) }
+  [data-state="focused"] { --hue:var(--quiet) }
 
   *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
   body{
-    background:var(--ground); color:var(--ink); font-family:var(--sans);
-    min-height:100vh; display:grid; grid-template-rows:auto 1fr auto;
-    transition:background .8s ease;
+    background:radial-gradient(ellipse 80% 70% at 50% 46%,var(--lift) 0%,var(--void) 70%);
+    color:var(--ink); font-family:var(--tech); overflow:hidden;
   }
-  .masthead{
-    display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap;
-    padding:1.25rem 1.5rem 1rem; border-bottom:1px solid var(--line);
+  canvas{position:fixed;inset:0;width:100%;height:100%}
+  #far  { filter:blur(9px); opacity:.16; transform:scale(1.34) }
+  #bloom{ filter:blur(14px); opacity:.55; mix-blend-mode:screen; pointer-events:none }
+
+  /* Projected light has artifacts. These are what make it read as unreal. */
+  .scan,.grain,.vignette{position:fixed;inset:0;pointer-events:none}
+  .scan{
+    background:repeating-linear-gradient(to bottom,
+      rgba(216,252,255,.030) 0 1px, transparent 1px 3px);
+    animation:drift 22s linear infinite;
   }
-  .wordmark{font-family:var(--display);font-size:1.6rem;letter-spacing:.02em}
-  .state{
-    font-family:var(--mono);font-size:.7rem;text-transform:uppercase;
-    letter-spacing:.18em;color:var(--accent);
+  @keyframes drift{ to{ transform:translateY(3px) } }
+  .grain{opacity:.05;mix-blend-mode:overlay}
+  .vignette{
+    background:radial-gradient(ellipse 70% 60% at 50% 50%,transparent 55%,var(--void) 100%);
+    box-shadow:inset 0 0 24vw color-mix(in srgb,var(--hue) 12%,transparent);
+    transition:box-shadow .9s ease;
   }
-  .masthead .spacer{margin-left:auto}
-  .chips{display:flex;gap:.5rem;font-family:var(--mono);font-size:.65rem;
-         letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
-  .chip{border:1px solid var(--line);padding:.25rem .5rem}
-  .chip[data-on="true"]{color:var(--accent);border-color:var(--accent)}
-
-  main{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:2rem;
-       padding:1.75rem 1.5rem;align-items:start}
-  @media(max-width:640px){ main{grid-template-columns:1fr} .rail{justify-self:center} }
-
-  .rail{display:flex;flex-direction:column;align-items:center;gap:.75rem}
-  canvas{width:180px;height:180px;display:block}
-  .rail-label{font-family:var(--mono);font-size:.65rem;letter-spacing:.14em;
-              text-transform:uppercase;color:var(--ink-3);text-align:center}
-
-  /* Bands, not cards: a rule, a monospace label, then the content. */
-  .band + .band{margin-top:1.75rem}
-  .band-head{display:flex;align-items:center;gap:.75rem;
-             border-top:1px solid var(--line);padding-top:.5rem;margin-bottom:.75rem}
-  .band-label{font-family:var(--mono);font-size:.65rem;letter-spacing:.16em;
-              text-transform:uppercase;color:var(--ink-3)}
-  .count{font-family:var(--mono);font-size:.65rem;color:var(--ink-3);margin-left:auto;
-         font-variant-numeric:tabular-nums}
-
-  .offer{display:grid;gap:.6rem;padding:.9rem 0 .9rem 1rem;
-         border-left:2px solid var(--accent);background:var(--raised)}
-  .offer + .offer{margin-top:.6rem}
-  .offer[data-urgency="critical"]{border-left-color:var(--red)}
-  .offer[data-urgency="warn"]{border-left-color:var(--amber)}
-  .offer p{font-size:1rem;line-height:1.5;max-width:62ch;text-wrap:pretty}
-  .why{font-family:var(--mono);font-size:.65rem;color:var(--ink-3);letter-spacing:.06em}
-  .actions{display:flex;gap:.5rem}
-  button{
-    font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
-    padding:.45rem .9rem;border:1px solid var(--ink-3);background:transparent;
-    color:var(--ink-2);cursor:pointer;transition:border-color .15s,color .15s;
+  [data-state="critical"] .vignette{ animation:alarm 1.9s ease-in-out infinite }
+  @keyframes alarm{
+    0%,100%{ box-shadow:inset 0 0 20vw rgba(255,45,45,.10) }
+    50%    { box-shadow:inset 0 0 30vw rgba(255,45,45,.30) }
   }
-  button:hover,button:focus-visible{border-color:var(--accent);color:var(--accent)}
-  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  button.primary{border-color:var(--accent);color:var(--accent)}
 
-  .feed{display:grid;gap:.4rem}
-  .row{display:grid;grid-template-columns:auto auto 1fr;gap:.75rem;align-items:baseline;
-       font-size:.85rem;color:var(--ink-2);padding:.15rem 0}
-  .row time,.row .cat{font-family:var(--mono);font-size:.65rem;color:var(--ink-3);
+  .overlay{position:fixed;inset:0;padding:clamp(.9rem,2.4vw,2rem)}
+  .label{
+    font-family:var(--mono);font-size:.6rem;font-weight:300;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-dim);
+  }
+  .val{font-family:var(--mono);font-size:.7rem;color:var(--ink);
        font-variant-numeric:tabular-nums;letter-spacing:.05em}
-  .row .cat{text-transform:uppercase}
-  .row[data-urgency="warn"] .cat{color:var(--amber)}
-  .row[data-urgency="critical"] .cat{color:var(--red)}
-  .empty{font-size:.85rem;color:var(--ink-3);font-style:italic}
+  .val b{color:var(--hue);font-weight:400}
 
-  footer{
-    display:flex;gap:1.75rem;flex-wrap:wrap;padding:.85rem 1.5rem;
-    border-top:1px solid var(--line);font-family:var(--mono);font-size:.7rem;
-    color:var(--ink-3);letter-spacing:.06em;font-variant-numeric:tabular-nums;
+  /* Corner clusters: dense, mostly texture. You are not meant to read them all. */
+  .cluster{position:absolute;display:grid;gap:.18rem}
+  .tl{top:clamp(.9rem,2.4vw,2rem);left:clamp(.9rem,2.4vw,2rem)}
+  .tr{top:clamp(.9rem,2.4vw,2rem);right:clamp(.9rem,2.4vw,2rem);justify-items:end}
+  .bl{bottom:clamp(.9rem,2.4vw,2rem);left:clamp(.9rem,2.4vw,2rem)}
+  .wordmark{
+    font-family:var(--tech);font-weight:500;font-size:1.05rem;letter-spacing:.42em;
+    color:var(--core);text-shadow:0 0 18px color-mix(in srgb,var(--hue) 60%,transparent);
   }
-  footer b{color:var(--ink-2);font-weight:500}
-  .demo{color:var(--amber);margin-left:auto}
+
+  /* One enormous unmissable thing, against all that texture. */
+  .core-readout{
+    position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);
+    text-align:center;pointer-events:none;
+  }
+  .metric{
+    font-family:var(--num);font-weight:100;font-size:clamp(4rem,13vw,9rem);
+    line-height:.86;color:var(--core);font-variant-numeric:tabular-nums;
+    text-shadow:0 0 40px color-mix(in srgb,var(--hue) 70%,transparent);
+  }
+  .metric span{font-size:.28em;color:var(--hue);vertical-align:super;margin-left:.1em}
+  .state-word{
+    font-family:var(--tech);font-weight:500;font-size:.78rem;letter-spacing:.5em;
+    text-transform:uppercase;color:var(--hue);margin-top:.9rem;
+  }
+  .metric-label{margin-top:.35rem}
+
+  /* Offers dock beneath the ring. Bracket-framed, never boxed. */
+  .dock{
+    position:absolute;left:50%;bottom:clamp(1rem,4vh,3rem);transform:translateX(-50%);
+    width:min(64ch,88vw);display:grid;gap:.6rem;
+  }
+  .offer{position:relative;padding:.85rem 1.1rem;display:grid;gap:.55rem}
+  .offer::before,.offer::after{
+    content:"";position:absolute;width:14px;height:14px;
+    border:1px solid var(--hue);opacity:.85;
+  }
+  .offer::before{top:0;left:0;border-right:0;border-bottom:0}
+  .offer::after{bottom:0;right:0;border-left:0;border-top:0}
+  .offer .rule{position:absolute;top:0;left:14px;right:14px;height:1px;
+               background:linear-gradient(90deg,var(--hue),transparent);
+               transform-origin:left;animation:sweep .5s ease-out}
+  @keyframes sweep{ from{transform:scaleX(0)} to{transform:scaleX(1)} }
+  .offer[data-urgency="critical"]{ --hue:var(--red) }
+  .offer[data-urgency="warn"]{ --hue:var(--amber) }
+  .offer p{font-size:1rem;line-height:1.45;color:var(--core);max-width:56ch}
+  .why{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;
+       text-transform:uppercase;color:var(--ink-dim)}
+  .actions{display:flex;gap:.5rem;margin-top:.15rem}
+  button{
+    font-family:var(--mono);font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;
+    padding:.4rem .95rem;background:transparent;color:var(--ink);
+    border:1px solid var(--ink-dim);cursor:pointer;transition:.16s;
+  }
+  button:hover,button:focus-visible{
+    color:var(--core);border-color:var(--hue);
+    box-shadow:0 0 14px color-mix(in srgb,var(--hue) 40%,transparent);
+  }
+  button:focus-visible{outline:2px solid var(--hue);outline-offset:3px}
+  button.go{color:var(--hue);border-color:color-mix(in srgb,var(--hue) 60%,transparent)}
+
+  /* Feed: peripheral texture, deliberately low contrast. */
+  .feed{
+    position:absolute;right:clamp(.9rem,2.4vw,2rem);top:26%;width:min(30ch,34vw);
+    display:grid;gap:.22rem;justify-items:end;text-align:right;pointer-events:none;
+  }
+  .feed .row{font-family:var(--mono);font-size:.62rem;font-weight:300;
+             color:var(--ink-dim);letter-spacing:.04em}
+  .feed .row:nth-child(n+6){opacity:.45}
+  .feed .row:nth-child(n+9){opacity:.22}
+  .feed .row b{color:var(--hue);font-weight:400}
+  @media(max-width:760px){ .feed{display:none} .core-readout{top:42%} }
+
+  @media(prefers-reduced-motion:reduce){
+    .scan,.vignette,.offer .rule{animation:none}
+  }
 </style>
 
-<header class="masthead">
-  <span class="wordmark">JARVIS</span>
-  <span class="state" id="stateLabel">calm</span>
-  <span class="spacer"></span>
-  <div class="chips">
-    <span class="chip" id="chipPresent">present</span>
-    <span class="chip" id="chipListen">listening</span>
-    <span class="chip" id="chipHeld">held 0</span>
-  </div>
-</header>
+<canvas id="far"></canvas>
+<canvas id="mid"></canvas>
+<canvas id="bloom"></canvas>
+<div class="scan"></div><canvas class="grain" id="grain"></canvas><div class="vignette"></div>
 
-<main>
-  <div class="rail">
-    <canvas id="reactor" width="360" height="360" aria-hidden="true"></canvas>
-    <span class="rail-label" id="railLabel">standing by</span>
+<div class="overlay">
+  <div class="cluster tl">
+    <div class="wordmark">JARVIS</div>
+    <div class="label" id="modeLine">local · autonomous</div>
+    <div class="val" id="sysLoad">LOAD <b>—</b></div>
   </div>
 
-  <div>
-    <section class="band">
-      <div class="band-head">
-        <span class="band-label">Awaiting your word</span>
-        <span class="count" id="offerCount">0</span>
-      </div>
-      <div id="offers"><p class="empty">Nothing pending, sir.</p></div>
-    </section>
-
-    <section class="band">
-      <div class="band-head">
-        <span class="band-label">Activity</span>
-        <span class="count" id="feedCount">0</span>
-      </div>
-      <div class="feed" id="feed"><p class="empty">Quiet.</p></div>
-    </section>
+  <div class="cluster tr">
+    <div class="val" id="chPresent">PRESENCE <b>—</b></div>
+    <div class="val" id="chListen">AUDIO <b>—</b></div>
+    <div class="val" id="chHeld">HELD <b>0</b></div>
   </div>
-</main>
 
-<footer id="telemetry"><span class="demo" id="mode"></span></footer>
+  <div class="cluster bl">
+    <div class="val" id="chVram">VRAM <b>—</b></div>
+    <div class="val" id="chDisk">DISK <b>—</b></div>
+  </div>
+
+  <div class="core-readout">
+    <div class="metric" id="metric">—<span id="unit"></span></div>
+    <div class="label metric-label" id="metricLabel">core temperature</div>
+    <div class="state-word" id="stateWord">calm</div>
+  </div>
+
+  <div class="feed" id="feed"></div>
+  <div class="dock" id="dock"></div>
+</div>
 
 <script>
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
-  const ACCENT = { calm:"#00e5ff", elevated:"#ffb000", critical:"#dc2626", focused:"#3f6f7a" };
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let state = { state:"calm", offers:[], feed:[], telemetry:{}, present:true,
-                listening:false, held:0 };
+  const RGB = { calm:[127,243,255], elevated:[255,176,0],
+                critical:[255,45,45], focused:[63,111,122] };
 
-  // ---- the ring: state is legible from across the room, before any text ----
-  const cv = $("reactor"), ctx = cv.getContext("2d");
-  const arc = (r, from, to, w, colour, alpha) => {
-    ctx.beginPath(); ctx.strokeStyle = colour; ctx.globalAlpha = alpha;
-    ctx.lineWidth = w; ctx.lineCap = "round";
-    ctx.arc(180, 180, r, from, to); ctx.stroke(); ctx.globalAlpha = 1;
-  };
-  function draw(t) {
-    const colour = ACCENT[state.state] || ACCENT.calm;
-    // Breath rate encodes urgency: calm is a slow tide, critical is a pulse.
-    const rate = { calm:.55, focused:.35, elevated:1.1, critical:2.4 }[state.state] || .55;
-    const breath = still ? .5 : (Math.sin(t / 1000 * rate) + 1) / 2;
-    const spin = still ? 0 : t / 1000 * (state.state === "critical" ? .9 : .18);
+  let S = { state:"calm", offers:[], feed:[], telemetry:{},
+            present:true, listening:false, held:0 };
 
-    ctx.clearRect(0, 0, 360, 360);
-    arc(150, 0, Math.PI * 2, 1, colour, .10);                       // outer trace
-    for (let i = 0; i < 3; i++) {                                    // rotating segments
-      const a = spin + i * Math.PI * 2 / 3;
-      arc(150, a, a + Math.PI / 3.4, 2, colour, .30 + breath * .35);
-    }
-    arc(122, 0, Math.PI * 2, 1, colour, .12);
-    arc(122, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, state.offers.length / 3),
-        3, colour, .75);                                             // pending load
-    arc(96, 0, Math.PI * 2, 10, colour, .06 + breath * .10);          // core glow
-    arc(74, 0, Math.PI * 2, 2, colour, .35 + breath * .45);
-    ctx.beginPath(); ctx.fillStyle = colour; ctx.globalAlpha = .12 + breath * .18;
-    ctx.arc(180, 180, 62, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-    requestAnimationFrame(draw);
+  // ---------- canvas ----------
+  const far = $("far"), mid = $("mid"), bloom = $("bloom"), grain = $("grain");
+  const fx = far.getContext("2d"), mx = mid.getContext("2d"),
+        bx = bloom.getContext("2d"), gx = grain.getContext("2d");
+  let W = 0, H = 0, R = 0;
+  function resize() {
+    const d = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    [far, mid, bloom].forEach(c => {
+      c.width = W * d; c.height = H * d;
+      c.getContext("2d").setTransform(d, 0, 0, d, 0, 0);
+    });
+    grain.width = W / 3; grain.height = H / 3;
+    R = Math.min(W, H) * 0.275;              // the ring is the page, not a widget
   }
-  requestAnimationFrame(draw);
+  addEventListener("resize", resize); resize();
 
-  // ---- render ----
-  const clock = ts => new Date((ts || Date.now() / 1000) * 1000)
+  // Real light bleeds and splits. Each stroke is drawn three times in pure
+  // R/G/B, offset by sub-pixels, composited additively — so crossings brighten
+  // and edges carry a faint prism. This is the whole "not paint" trick.
+  function beam(ctx, path, [r, g, b], alpha, width, ab = 0.7) {
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = width; ctx.lineCap = "round";
+    [[r, 0, 0, -ab], [0, g, 0, 0], [0, 0, b, ab]].forEach(([R_, G_, B_, dx]) => {
+      ctx.save(); ctx.translate(dx, 0);
+      ctx.strokeStyle = `rgba(${R_|0},${G_|0},${B_|0},${alpha})`;
+      ctx.beginPath(); path(ctx); ctx.stroke(); ctx.restore();
+    });
+    ctx.globalCompositeOperation = "source-over";
+  }
+  const ring = (r, a0, a1) => c => c.arc(W / 2, H / 2, r, a0, a1);
+
+  let loadArc = 0;                            // eased, so it sweeps not jumps
+  function paint(t) {
+    const hue = RGB[S.state] || RGB.calm;
+    const T = still ? 0 : t / 1000;
+    const rate = { calm:.55, focused:.3, elevated:1.0, critical:2.3 }[S.state] || .55;
+    const breath = still ? .5 : (Math.sin(T * rate) + 1) / 2;
+
+    mx.clearRect(0, 0, W, H); fx.clearRect(0, 0, W, H);
+
+    // Far plane counter-rotates. That opposition is what reads as depth.
+    beam(fx, ring(R * 1.5, -T * .05, -T * .05 + 4.4), hue, .5, 1.5);
+    beam(fx, ring(R * 1.28, T * .09, T * .09 + 2.1), hue, .4, 1);
+
+    // 120-tick measurement array with a slow travelling brightness wave.
+    for (let i = 0; i < 120; i++) {
+      const a = i / 120 * Math.PI * 2 - Math.PI / 2;
+      const major = i % 10 === 0;
+      const wave = still ? .5 : (Math.sin(i / 120 * Math.PI * 4 - T * .8) + 1) / 2;
+      const len = major ? R * .075 : R * (.028 + wave * .022);
+      const r0 = R * 1.06;
+      beam(mx, c => {
+        c.moveTo(W/2 + Math.cos(a) * r0,       H/2 + Math.sin(a) * r0);
+        c.lineTo(W/2 + Math.cos(a) * (r0+len), H/2 + Math.sin(a) * (r0+len));
+      }, hue, major ? .5 : .12 + wave * .28, major ? 1.6 : 1, .4);
+    }
+
+    // Incommensurate rates: the pattern never visibly repeats.
+    beam(mx, ring(R * 1.02, 0, Math.PI * 2), hue, .10, 1);
+    [[.18, 0, 1.5], [-.31, 2.2, .9], [.07, 4.1, 2.4]].forEach(([sp, off, span], i) => {
+      const a = T * sp + off;
+      beam(mx, ring(R * (.94 - i * .07), a, a + span), hue, .30 + breath * .28, 2);
+    });
+
+    // Pending load — the one arc that states a precise fact.
+    const target = Math.min(1, S.offers.length / 3);
+    loadArc += (target - loadArc) * .06;
+    if (loadArc > .002) {
+      beam(mx, ring(R * .82, -Math.PI/2, -Math.PI/2 + Math.PI*2*loadArc),
+           [216,252,255], .85, 3);
+    }
+
+    beam(mx, ring(R * .58, 0, Math.PI * 2), hue, .07 + breath * .07, R * .10);
+    beam(mx, ring(R * .44, 0, Math.PI * 2), hue, .30 + breath * .40, 1.5);
+
+    bx.clearRect(0, 0, W, H); bx.drawImage(mid, 0, 0, W, H);
+
+    if (!still && Math.random() < .05) {      // grain, refreshed a few times a sec
+      const img = gx.createImageData(grain.width, grain.height);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255;
+        img.data[i] = img.data[i+1] = img.data[i+2] = v; img.data[i+3] = 26;
+      }
+      gx.putImageData(img, 0, 0);
+    }
+    requestAnimationFrame(paint);
+  }
+  requestAnimationFrame(paint);
+
+  // Rare, brief, unexplained — an artifact rather than an effect.
+  if (!still) setInterval(() => {
+    if (Math.random() > .35) return;
+    document.body.style.transform = `translateX(${(Math.random()*8-4).toFixed(1)}px)`;
+    setTimeout(() => document.body.style.transform = "", 60);
+  }, 21000);
+
+  // ---------- text: resolves out of noise instead of fading in ----------
+  const GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789/\\<>=+*#";
+  function scramble(el, text) {
+    if (still) { el.textContent = text; return; }
+    let frame = 0;
+    const id = setInterval(() => {
+      frame++;
+      el.textContent = text.split("").map((ch, i) =>
+        ch === " " ? " " :
+        i < frame * 1.6 ? ch : GLYPHS[(Math.random() * GLYPHS.length) | 0]).join("");
+      if (frame * 1.6 > text.length) { clearInterval(id); el.textContent = text; }
+    }, 26);
+  }
+
+  // ---------- render ----------
+  const clock = ts => new Date((ts || Date.now()/1000) * 1000)
     .toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+  const seen = new Set();
 
   function render() {
-    document.documentElement.setAttribute("data-state", state.state);
-    $("stateLabel").textContent = state.state;
-    $("chipPresent").dataset.on = state.present;
-    $("chipListen").dataset.on = state.listening;
-    $("chipHeld").textContent = `held ${state.held}`;
-    $("chipHeld").dataset.on = state.held > 0;
-    $("railLabel").textContent = state.offers.length
-      ? `${state.offers.length} awaiting` : "standing by";
+    document.documentElement.dataset.state = S.state;
+    $("stateWord").textContent = S.state;
 
-    $("offerCount").textContent = state.offers.length;
-    $("offers").innerHTML = state.offers.length ? "" :
-      '<p class="empty">Nothing pending, sir.</p>';
-    state.offers.forEach(o => {
+    const t = S.telemetry || {};
+    const temp = t.gpu_temp_c;
+    $("metric").firstChild.nodeValue = temp != null ? Math.round(temp) : "—";
+    $("unit").textContent = temp != null ? "°C" : "";
+    $("sysLoad").querySelector("b").textContent = t.load_1m ?? "—";
+    $("chVram").querySelector("b").textContent = t.vram_pct != null ? t.vram_pct + "%" : "—";
+    $("chDisk").querySelector("b").textContent =
+      t.disk_free_gb != null ? t.disk_free_gb + " GB" : "—";
+    $("chPresent").querySelector("b").textContent = S.present ? "AT DESK" : "AWAY";
+    $("chListen").querySelector("b").textContent = S.listening ? "LISTENING" : "IDLE";
+    $("chHeld").querySelector("b").textContent = S.held;
+
+    $("dock").innerHTML = "";
+    S.offers.forEach(o => {
       const el = document.createElement("article");
       el.className = "offer"; el.dataset.urgency = o.urgency;
-      const p = document.createElement("p"); p.textContent = o.text;
-      const why = document.createElement("span");
-      why.className = "why"; why.textContent = `${o.category} · ${o.reason}`;
-      const actions = document.createElement("div"); actions.className = "actions";
-      const yes = document.createElement("button");
-      yes.className = "primary"; yes.textContent = "Confirm";
-      yes.onclick = () => answer(o.id, "confirm");
+      el.innerHTML = '<span class="rule"></span>';
+      const p = document.createElement("p");
+      const why = document.createElement("div");
+      why.className = "why"; why.textContent = `${o.category} — ${o.reason || "pending"}`;
+      const acts = document.createElement("div"); acts.className = "actions";
+      const go = document.createElement("button");
+      go.className = "go"; go.textContent = "Confirm";
+      go.onclick = () => answer(o.id, "confirm");
       const no = document.createElement("button");
       no.textContent = "Dismiss"; no.onclick = () => answer(o.id, "decline");
-      actions.append(yes, no); el.append(p, why, actions);
-      $("offers").append(el);
+      acts.append(go, no); el.append(p, why, acts); $("dock").append(el);
+      if (seen.has(o.id)) p.textContent = o.text; else { seen.add(o.id); scramble(p, o.text); }
     });
 
-    $("feedCount").textContent = state.feed.length;
-    $("feed").innerHTML = state.feed.length ? "" : '<p class="empty">Quiet.</p>';
-    state.feed.forEach(c => {
+    $("feed").innerHTML = "";
+    S.feed.slice(0, 11).forEach(c => {
       const row = document.createElement("div");
-      row.className = "row"; row.dataset.urgency = c.urgency;
-      row.innerHTML = `<time>${clock(c.ts)}</time><span class="cat"></span><span></span>`;
-      row.querySelector(".cat").textContent = c.category;
-      row.lastElementChild.textContent = c.text;
+      row.className = "row";
+      row.innerHTML = `<b></b> <span></span>`;
+      row.querySelector("b").textContent = clock(c.ts);
+      row.querySelector("span").textContent = c.text;
       $("feed").append(row);
     });
-
-    const t = state.telemetry || {};
-    const bits = [];
-    if (t.gpu_temp_c   != null) bits.push(`GPU <b>${t.gpu_temp_c}°C</b>`);
-    if (t.vram_pct     != null) bits.push(`VRAM <b>${t.vram_pct}%</b>`);
-    if (t.disk_free_gb != null) bits.push(`DISK <b>${t.disk_free_gb} GB free</b>`);
-    if (t.load_1m      != null) bits.push(`LOAD <b>${t.load_1m}</b>`);
-    const mode = $("mode").textContent;
-    $("telemetry").innerHTML = bits.join("") || "";
-    $("telemetry").querySelectorAll("span").forEach(n => n.remove());
-    bits.forEach(b => { const s = document.createElement("span");
-                        s.innerHTML = b; $("telemetry").append(s); });
-    const m = document.createElement("span");
-    m.className = "demo"; m.id = "mode"; m.textContent = mode;
-    $("telemetry").append(m);
   }
 
+  // The last digit never settles. Nothing says "live instrument" more cheaply.
+  if (!still) setInterval(() => {
+    const t = S.telemetry || {};
+    if (t.gpu_temp_c == null || Math.random() > .4) return;
+    const el = $("metric").firstChild, real = Math.round(t.gpu_temp_c);
+    el.nodeValue = real + (Math.random() < .5 ? 1 : -1);
+    setTimeout(() => el.nodeValue = real, 70);
+  }, 1400);
+
   async function answer(id, verb) {
-    state.offers = state.offers.filter(o => o.id !== id);
-    render();
+    S.offers = S.offers.filter(o => o.id !== id); render();
     try {
       await fetch("/answer", { method:"POST",
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ id, answer: verb }) });
-    } catch { /* demo mode: nothing to talk to */ }
+    } catch { /* demo mode */ }
   }
 
-  // ---- live if the daemon is there; otherwise demonstrate itself ----
+  // ---------- live, or demonstrate itself ----------
   let live = false;
   try {
     const es = new EventSource("/events");
-    es.onmessage = e => { live = true; state = JSON.parse(e.data); render(); };
+    es.onmessage = e => { live = true; S = JSON.parse(e.data); render(); };
     es.onerror = () => { if (!live) { es.close(); demo(); } };
     setTimeout(() => { if (!live) { es.close(); demo(); } }, 1200);
   } catch { demo(); }
 
   function demo() {
-    $("mode").textContent = "demo — no daemon attached";
+    $("modeLine").textContent = "demo · no daemon attached";
     const now = () => Date.now() / 1000;
+    const push = (text, urgency = "info", category = "system") =>
+      S.feed.unshift({ id:Math.random().toString(36).slice(2), text, urgency, category, ts:now() });
     const script = [
-      { at:600,  fn:s => { s.telemetry={gpu_temp_c:61,vram_pct:38,disk_free_gb:412,load_1m:0.7};
-                           s.feed.unshift({id:"b1",text:"Ingest finished — 1,204 documents.",
-                             urgency:"info",category:"ci",ts:now()}); } },
-      { at:2600, fn:s => { s.state="elevated";
-                           s.offers.push({id:"o1",text:"GPU's running warm, sir — 87 degrees.",
-                             urgency:"warn",category:"gpu",reason:"attention available"}); } },
-      { at:6200, fn:s => { s.telemetry.gpu_temp_c=91; s.listening=true;
-                           s.feed.unshift({id:"b2",text:"Fan curve stepped to 78%.",
-                             urgency:"info",category:"gpu",ts:now()}); } },
-      { at:9000, fn:s => { s.state="critical"; s.telemetry.gpu_temp_c=96; s.listening=false;
-                           s.offers.push({id:"o2",text:"Thermal limit reached. Shall I throttle the render, sir?",
-                             urgency:"critical",category:"gpu",reason:"critical overrides focus"}); } },
-      { at:15000,fn:s => { s.state="focused"; s.offers.length=0; s.held=3;
-                           s.telemetry.gpu_temp_c=64;
-                           s.feed.unshift({id:"b3",text:"Three items held while you work.",
-                             urgency:"info",category:"policy",ts:now()}); } },
-      { at:20000,fn:s => { s.state="calm"; s.held=0;
-                           s.feed.unshift({id:"b4",text:"All nominal.",urgency:"info",
-                             category:"system",ts:now()}); } },
+      [400,  () => { S.telemetry = { gpu_temp_c:61, vram_pct:38, disk_free_gb:412, load_1m:0.7 };
+                     push("Ingest complete — 1,204 documents."); }],
+      [2400, () => { S.listening = true; push("Wake word — listening."); }],
+      [4200, () => { S.listening = false; push("Rendering frame 240 of 900.", "info", "workshop"); }],
+      [6000, () => { S.state = "elevated"; S.telemetry.gpu_temp_c = 87;
+                     S.offers.push({ id:"o1", text:"GPU's running warm, sir — eighty-seven degrees.",
+                                     urgency:"warn", category:"gpu", reason:"attention available" }); }],
+      [10500,() => { S.telemetry.gpu_temp_c = 94; push("Fan curve stepped to 82%.", "warn", "gpu"); }],
+      [13000,() => { S.state = "critical"; S.telemetry.gpu_temp_c = 97; S.offers.length = 0;
+                     S.offers.push({ id:"o2", text:"Thermal limit reached. Shall I throttle the render, sir?",
+                                     urgency:"critical", category:"gpu", reason:"critical overrides focus" }); }],
+      [19000,() => { S.state = "focused"; S.offers.length = 0; S.held = 3;
+                     S.telemetry.gpu_temp_c = 66;
+                     push("Three items held while you work.", "info", "policy"); }],
+      [25000,() => { S.state = "calm"; S.held = 0; S.telemetry.gpu_temp_c = 58;
+                     push("All nominal."); }],
     ];
-    const start = performance.now();
-    const run = () => {
-      const t = performance.now() - start;
-      script.forEach(step => { if (!step.done && t >= step.at) {
-        step.done = true; step.fn(state); render(); } });
-      if (t > 24000) { script.forEach(s => s.done = false);
-                       Object.assign(state,{state:"calm",offers:[],feed:[],held:0});
-                       return setTimeout(demo, 400); }
-      setTimeout(run, 200);
-    };
-    render(); run();
+    const t0 = performance.now();
+    (function run() {
+      const t = performance.now() - t0;
+      script.forEach(s => { if (!s[2] && t >= s[0]) { s[2] = 1; s[1](); render(); } });
+      if (t > 30000) {
+        script.forEach(s => s[2] = 0); seen.clear();
+        Object.assign(S, { state:"calm", offers:[], feed:[], held:0, listening:false });
+        return setTimeout(demo, 500);
+      }
+      setTimeout(run, 160);
+    })();
+    render();
   }
   render();
 })();

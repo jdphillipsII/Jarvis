@@ -22,6 +22,24 @@ Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
     ./cli.py watch      # daemon + HUD on http://127.0.0.1:8787
     ./cli.py hud        # open it
 
+### Visual language
+
+Light drawn on black, never paint on a surface. Nothing has a fill; framing is
+corner brackets, never a box. Every stroke is drawn three times in pure R/G/B
+offset by sub-pixels and composited additively, so crossings brighten and edges
+carry a faint prism — that is what makes it read as projected rather than
+rendered. Three depth planes, the far one counter-rotating. Rotation rates are
+deliberately incommensurate (0.18 / -0.31 / 0.07 rad/s) so the pattern never
+visibly repeats.
+
+Type departs from the repo-wide system on this one surface: Chakra Petch and
+Saira 100 replace Fraunces, which is a warm editorial serif and fights
+everything here. Amber and red are alarm only, never decoration; the brightest
+pixel on screen is near-white, with the hue living in the falloff.
+
+Everything obeys `prefers-reduced-motion` — and the composition still has to
+hold when all of it stops, so nothing depends on motion to be legible.
+
 Operational state drives the whole visual language and is derived in exactly
 one place (`core/hud_state.py`). Precedence is deliberate:
 
