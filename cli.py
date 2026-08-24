@@ -7,7 +7,8 @@
     jarvis chat            text-mode conversation with the full tool loop
     jarvis listen          the voice loop
     jarvis presence        the camera presence daemon
-    jarvis watch           the proactive daemon
+    jarvis watch           the proactive daemon (also serves the HUD)
+    jarvis hud             open the HUD in a browser
     jarvis up              everything at once
     jarvis install         write systemd user units
 """
@@ -146,6 +147,16 @@ def cmd_chat(_) -> int:
         print(f"JARVIS> {turn.text}\n")
 
 
+def cmd_hud(_) -> int:
+    """Open the HUD in a browser (the daemon serves it)."""
+    port = os.environ.get("JARVIS_HUD_PORT", "8787")
+    url = f"http://127.0.0.1:{port}/"
+    print(f"opening {url}")
+    print(f"{DIM}if nothing loads, start the daemon first: ./cli.py watch{OFF}")
+    subprocess.call(["xdg-open", url])
+    return 0
+
+
 def _exec(script: str, extra) -> int:
     return subprocess.call([_venv_python(), os.path.join(ROOT, script), *extra])
 
@@ -163,9 +174,22 @@ def cmd_watch(_) -> int:
     import daemon.watchers  # noqa: F401  — registers the watchers
     import time
 
+    from core.hud_state import HudState
+    from hud.server import Hub, serve
+
     bus = Bus(registry=Registry.load())
     d = ProactiveDaemon(bus=bus, policy=SpeakPolicy())
     Greeter(bus=bus, briefing=d.briefing, policy=d.policy).attach()
+
+    hub = Hub(HudState())
+    bus.subscribe("jarvis.*", hub.on_intent, "hud")
+    bus.subscribe("presence.*", hub.on_presence, "hud-presence")
+    port = int(os.environ.get("JARVIS_HUD_PORT", "8787"))
+    try:
+        serve(hub, port=port)
+        print(f"{DIM}hud on http://127.0.0.1:{port}{OFF}")
+    except OSError as exc:
+        print(f"{DIM}hud unavailable: {exc}{OFF}")
     bus.subscribe("jarvis.*", lambda i: print(f"  [{i.intent}] {i.args['text']}"
                                               f"  {DIM}({i.args['reason']}){OFF}"))
     sock = os.environ.get("JARVIS_SOCKET", f"/run/user/{os.getuid()}/jarvis.sock")
@@ -176,8 +200,16 @@ def cmd_watch(_) -> int:
         print(f"{DIM}socket unavailable ({exc}); in-process only{OFF}")
     print("watching. ctrl-c to stop.\n")
     try:
+        from daemon.toolbox.builtin import build as build_tools
+        from core.toolbox import Toolbox
+        from core.tools import Agency
+        status = Toolbox(registry=build_tools(), agency=Agency.ADVISORY)
         while True:
             d.tick()
+            hub.state.held = len(d.briefing)
+            reading = status.invoke("system.status")
+            if reading.ok:
+                hub.set_telemetry(reading.value)
             time.sleep(5)
     except KeyboardInterrupt:
         print("\nstopping.")

@@ -17,6 +17,29 @@ Nothing talks to the compositor directly.
 
 Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
 
+## HUD
+
+    ./cli.py watch      # daemon + HUD on http://127.0.0.1:8787
+    ./cli.py hud        # open it
+
+Operational state drives the whole visual language and is derived in exactly
+one place (`core/hud_state.py`). Precedence is deliberate:
+
+| state | when | ring |
+|---|---|---|
+| `critical` | a critical offer is pending | red, fast pulse |
+| `focused` | deep work — quiet even with noise pending | dim, slowest |
+| `elevated` | something is waiting | amber |
+| `calm` | nothing to say | cyan, slow tide |
+
+CRITICAL outranks FOCUSED because the one thing allowed to break flow is the
+thing that costs more to miss. FOCUSED outranks ELEVATED because a warning you
+have already deferred should not keep the room amber while you work.
+
+Only answerable offers change the state; a badge is just a mark in the feed.
+The page falls back to a self-running demo when no daemon is attached, so the
+design can be reviewed anywhere.
+
 ## Presence
 
     # needs: uv pip install opencv-python mediapipe   (in a 3.11 venv)
@@ -40,7 +63,8 @@ Contract: `intents/CONTRACT.md` · allowlist: `intents/registry.yaml`
 | `chat` | text-mode conversation with the full tool loop — no mic needed |
 | `listen` | the voice loop |
 | `presence` | the camera presence daemon |
-| `watch` | the proactive daemon |
+| `watch` | the proactive daemon (also serves the HUD) |
+| `hud` | open the HUD in a browser |
 | `up` | all three |
 | `install` | write systemd user units so it starts with your session |
 
@@ -81,7 +105,8 @@ becomes something it corrects on the next round instead of a dead end.
 - [x] **2** Voice loop — wake → whisper → Ollama → Piper (Alan)
 - [x] **3** Presence detection — greet on arrival, hush when away
 - [x] **4** Proactive daemon — GPU / disk / systemd watchers, judged by policy
-- [ ] **5** Plasma layer — Activities (COMMAND / WORKSHOP / FORGE), Karousel, HUD
+- [x] **5a** HUD — arc-reactor state ring, offers you can answer, live telemetry
+- [ ] **5b** Plasma layer — Activities (COMMAND / WORKSHOP / FORGE), Karousel
 - [ ] **6** Gestures — camera → MediaPipe → intents
 
 ## Agency level
