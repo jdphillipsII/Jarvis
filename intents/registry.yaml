@@ -15,6 +15,11 @@ mic:
 jarvis:
   jarvis.interrupt:   {desc: "stop TTS mid-sentence",          floor: 0.95}
   jarvis.speak:       {desc: "speak text", args: [text],       floor: 1.00}
+  # Proactive output. CHIME is the ceiling -- see core/policy.py. An offer is
+  # a cue plus text held ready; TTS runs only if the user accepts.
+  jarvis.offer:       {desc: "soft cue + held utterance", args: [text], floor: 1.00}
+  jarvis.badge:       {desc: "silent HUD mark",           args: [text], floor: 1.00}
+  jarvis.batch:       {desc: "hold for next briefing",    args: [text], floor: 1.00}
 presence:
   presence.arrived:   {desc: "user sat down",                  floor: 0.70}
   presence.left:      {desc: "user left desk",                 floor: 0.70}
