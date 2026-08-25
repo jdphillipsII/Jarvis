@@ -272,10 +272,15 @@ def main() -> int:
             ("watch", cmd_watch, False),
             ("install", cmd_install, False), ("up", cmd_up, False)):
         p = sub.add_parser(name, help=fn.__doc__ or name)
-        if takes_extra:
-            p.add_argument("extra", nargs="*")
-        p.set_defaults(fn=fn)
-    args = ap.parse_args()
+        p.set_defaults(fn=fn, passthrough=takes_extra)
+    # Flags for the wrapped daemons are collected by parse_known_args and
+    # forwarded verbatim. A positional with nargs="*" or REMAINDER cannot do
+    # this — argparse refuses to let either absorb tokens starting with "-",
+    # so `jarvis gestures --preview` failed instead of passing the flag along.
+    args, unknown = ap.parse_known_args()
+    if unknown and not getattr(args, "passthrough", False):
+        ap.error("unrecognized arguments: " + " ".join(unknown))
+    args.extra = unknown
     return args.fn(args) or 0
 
 

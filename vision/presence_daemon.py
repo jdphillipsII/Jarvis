@@ -27,6 +27,20 @@ POLL_HZ = 2.0
 DEFAULT_SOCKET = f"/run/user/{os.getuid()}/jarvis.sock"
 
 
+
+def _require_vision() -> None:
+    """Fail with the fix, not a traceback."""
+    missing = []
+    for mod, pkg in (("cv2", "opencv-python"), ("mediapipe", "mediapipe")):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(pkg)
+    if missing:
+        sys.exit(f"missing: {', '.join(missing)}\n"
+                 f"  uv pip install {' '.join(missing)}\n"
+                 f"  (or: bash setup/install.sh)")
+
 def open_camera(spec: str):
     import cv2
     cap = cv2.VideoCapture(int(spec) if spec.isdigit() else spec)
@@ -59,6 +73,7 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true",
                     help="print transitions instead of publishing")
     args = ap.parse_args()
+    _require_vision()
 
     cap = open_camera(args.camera)
     detect = make_detector(args.confidence)
