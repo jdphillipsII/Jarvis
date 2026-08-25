@@ -18,7 +18,8 @@ from faster_whisper import WhisperModel
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from core.endpointing import Endpointer, EndpointerConfig, VoiceEvent   # noqa: E402
-from core.rms_vad import RmsVad                                          # noqa: E402
+from core.rms_vad import RmsVad
+from core.config import cfg                                          # noqa: E402
 from core.agent import Agent, PERSONA                                    # noqa: E402
 from core.interrupt import is_pause_utterance                            # noqa: E402
 from core.ollama import OllamaChat                                       # noqa: E402
@@ -27,16 +28,6 @@ from core.bus import Bus                                                 # noqa:
 from core.toolbox import Toolbox                                         # noqa: E402
 from core.tools import Agency                                            # noqa: E402
 from daemon.toolbox.builtin import build as build_tools                  # noqa: E402
-
-def cfg(key, default):
-    """Read config/jarvis.env without extra deps."""
-    path = os.path.join(ROOT, "config/jarvis.env")
-    if os.path.exists(path):
-        for line in open(path):
-            line = line.split("#", 1)[0].strip()
-            if line.startswith(key + "="):
-                return line.split("=", 1)[1].strip()
-    return default
 
 CHAT_MODEL = cfg("JARVIS_CHAT_MODEL", "qwen2.5:7b")
 VOICE      = cfg("JARVIS_VOICE", "en_GB-alan-medium")

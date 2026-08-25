@@ -28,14 +28,7 @@ GREEN, RED, DIM, OFF = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 OK, NO = f"{GREEN}ok{OFF}", f"{RED}missing{OFF}"
 
 
-def _cfg(key: str, default: str = "") -> str:
-    path = os.path.join(ROOT, "config/jarvis.env")
-    if os.path.exists(path):
-        for line in open(path):
-            line = line.split("#", 1)[0].strip()
-            if line.startswith(key + "="):
-                return line.split("=", 1)[1].strip()
-    return default
+from core.config import cfg as _cfg
 
 
 def _venv_python() -> str:

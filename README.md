@@ -60,7 +60,24 @@ design can be reviewed anywhere.
 
 ## Gestures
 
-    python vision/gesture_daemon.py --dry-run --preview
+    ./cli.py gestures --dry-run --preview
+
+### Using a phone as the camera
+
+Any MJPEG source works — `JARVIS_CAM` accepts a URL as readily as a device
+index, so no v4l2loopback and no kernel module:
+
+    # config/jarvis.env
+    JARVIS_CAM=http://192.168.1.42:8080/video
+
+Android: install **IP Webcam**, set 640x480, and **lock focus and exposure** —
+autofocus hunting is the single biggest cause of unstable landmarks. Over USB
+instead of wifi (`adb forward tcp:8080 tcp:8080`, then `http://localhost:8080/video`)
+latency drops from ~150 ms to ~60 ms.
+
+Environment always overrides the file, so a single run can ignore it:
+
+    JARVIS_CAM=0 ./cli.py gestures --preview
 
 | gesture | intent |
 |---|---|

@@ -19,6 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from core.bus import send
+from core.config import cfg
 from core.intent import Intent
 from core.presence import PresenceConfig, PresenceEventType, PresenceTracker
 
@@ -52,8 +53,8 @@ def make_detector(min_confidence: float = 0.5):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--socket", default=os.environ.get("JARVIS_SOCKET", DEFAULT_SOCKET))
-    ap.add_argument("--camera", default=os.environ.get("JARVIS_CAM", "0"))
+    ap.add_argument("--socket", default=cfg("JARVIS_SOCKET", DEFAULT_SOCKET))
+    ap.add_argument("--camera", default=cfg("JARVIS_CAM", "0"))
     ap.add_argument("--confidence", type=float, default=0.5)
     ap.add_argument("--dry-run", action="store_true",
                     help="print transitions instead of publishing")

@@ -20,6 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from core.bus import send
+from core.config import cfg
 from core.debounce import Debouncer
 from core.gestures import DragTracker, Gesture, GESTURE_INTENTS, classify
 from core.intent import Intent
@@ -57,8 +58,8 @@ def make_tracker(confidence: float):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--socket", default=os.environ.get("JARVIS_SOCKET", DEFAULT_SOCKET))
-    ap.add_argument("--camera", default=os.environ.get("JARVIS_CAM", "0"))
+    ap.add_argument("--socket", default=cfg("JARVIS_SOCKET", DEFAULT_SOCKET))
+    ap.add_argument("--camera", default=cfg("JARVIS_CAM", "0"))
     ap.add_argument("--confidence", type=float, default=0.6)
     ap.add_argument("--stable-frames", type=int, default=4)
     ap.add_argument("--cooldown", type=float, default=1.0)
