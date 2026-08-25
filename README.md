@@ -114,6 +114,9 @@ debouncer's streak; guessing would fire an action.
 Options: `--no-vision` skips opencv/mediapipe (~500 MB), `--core-only` installs
 just enough to run the test suite. The script is idempotent — re-run it freely.
 
+Your settings live in `config/jarvis.env`, which is gitignored and created from
+`config/jarvis.env.example` on first install. Edits there survive every pull.
+
 ## The `jarvis` command
 
 | command | what it does |

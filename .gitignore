@@ -7,3 +7,7 @@ models/
 __pycache__/
 *.pyc
 config/secrets.env
+
+# Your local config — copied from jarvis.env.example on first install.
+# Tracked config would be overwritten by every pull.
+config/jarvis.env

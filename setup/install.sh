@@ -39,6 +39,15 @@ if [[ $CORE_ONLY -eq 0 ]]; then
   fi
 fi
 
+# ---- 1b. local config -------------------------------------------------------
+say "config"
+if [[ -f config/jarvis.env ]]; then
+  ok "config/jarvis.env exists (yours — never overwritten)"
+else
+  cp config/jarvis.env.example config/jarvis.env
+  ok "created config/jarvis.env from the example"
+fi
+
 # ---- 2. uv ------------------------------------------------------------------
 if ! command -v uv >/dev/null; then
   say "installing uv"

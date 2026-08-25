@@ -33,3 +33,21 @@ def test_default_when_absent(envfile):
 
 def test_missing_file_is_not_an_error(tmp_path):
     assert cfg("ANY", "d", path=str(tmp_path / "nope.env")) == "d"
+
+
+def test_falls_back_to_the_example_when_no_local_config(monkeypatch, tmp_path):
+    """A fresh clone has only jarvis.env.example — the CLI must still work."""
+    import core.config as c
+    monkeypatch.setattr(c, "CONFIG_PATH", str(tmp_path / "absent.env"))
+    monkeypatch.setattr(c, "EXAMPLE_PATH", str(tmp_path / "absent.env.example"))
+    (tmp_path / "absent.env.example").write_text("JARVIS_AGENCY=advisory\n")
+    assert c.cfg("JARVIS_AGENCY") == "advisory"
+
+
+def test_local_config_wins_over_the_example(monkeypatch, tmp_path):
+    import core.config as c
+    (tmp_path / "j.env").write_text("JARVIS_AGENCY=actuator\n")
+    (tmp_path / "j.env.example").write_text("JARVIS_AGENCY=advisory\n")
+    monkeypatch.setattr(c, "CONFIG_PATH", str(tmp_path / "j.env"))
+    monkeypatch.setattr(c, "EXAMPLE_PATH", str(tmp_path / "j.env.example"))
+    assert c.cfg("JARVIS_AGENCY") == "actuator"
