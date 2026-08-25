@@ -86,10 +86,16 @@ debouncer's streak; guessing would fire an action.
 
 ## Quick start
 
-    bash setup/voice-setup.sh        # venv + wake model + Alan voice
+    git clone https://github.com/jdphillipsII/Jarvis.git ~/jarvis
+    cd ~/jarvis
+    bash setup/install.sh            # venv, deps, models, then runs the tests
+
     source .venvs/voice/bin/activate
     ./cli.py doctor                  # checks every prerequisite, names the fix
-    ./cli.py up                      # voice + presence + watchers
+    ./cli.py chat                    # text mode, full tool loop, no mic needed
+
+Options: `--no-vision` skips opencv/mediapipe (~500 MB), `--core-only` installs
+just enough to run the test suite. The script is idempotent — re-run it freely.
 
 ## The `jarvis` command
 
