@@ -125,6 +125,7 @@ Your settings live in `config/jarvis.env`, which is gitignored and created from
 | `status` | GPU temperature, disk, load |
 | `tools` | what JARVIS can do at the current agency, and how many are hidden above it |
 | `chat` | text-mode conversation with the full tool loop — no mic needed |
+| `bench` | score models on tool choice, arguments, persona and speed |
 | `listen` | the voice loop |
 | `presence` | the camera presence daemon |
 | `gestures` | the camera gesture daemon |
@@ -142,6 +143,25 @@ level is never shown to the model, so it cannot ask for what it cannot see),
 
 Agency is set by `JARVIS_AGENCY` in `config/jarvis.env` and is the user's to
 raise. An unrecognised value fails closed to `advisory`.
+
+### Choosing a model
+
+    ./cli.py bench qwen3.6:27b hermes4:14b mistral-small:24b
+
+Public benchmarks predict very little about the thing that matters here. This
+runs a fixed suite against your real toolbox and reports what does:
+
+| column | meaning |
+|---|---|
+| `tool` | picked the right tool — **including correctly picking none** |
+| `args` | arguments survived schema validation and matched the case |
+| `persona` | stayed in character on turns that produced speech |
+| `mean` / `worst` | latency, which you feel on every voice turn |
+
+Three of the ten cases expect *no* tool call, because over-eagerly reaching for
+one is as wrong as picking the wrong one. Nothing is executed: notes go to a
+scratch file, no bus is attached, and mutating tools stop at a proposal that is
+never confirmed.
 
 ### Reasoning models
 

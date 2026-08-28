@@ -5,6 +5,7 @@
     jarvis doctor          check every prerequisite and say what's missing
     jarvis tools           list what JARVIS can do at the current agency
     jarvis chat            text-mode conversation with the full tool loop
+    jarvis bench [models]  score models on tool choice, args, persona, speed
     jarvis listen          the voice loop
     jarvis presence        the camera presence daemon
     jarvis gestures        the camera gesture daemon
@@ -24,6 +25,7 @@ import sys
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
+G = GREEN = '\033[32m'
 GREEN, RED, DIM, OFF = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 OK, NO = f"{GREEN}ok{OFF}", f"{RED}missing{OFF}"
 
@@ -102,6 +104,74 @@ def cmd_status(_) -> int:
         return 1
     for key, value in sorted(r.value.items()):
         print(f"  {key:<16} {value}")
+    return 0
+
+
+def cmd_bench(a) -> int:
+    """Measure models against your real toolbox: tool choice, args, persona, speed."""
+    import tempfile, time
+    from core.agent import Agent
+    from core.bench import (DEFAULT_CASES, CaseResult, ModelReport,
+                            render, render_failures)
+    from core.ollama import OllamaChat
+    from core.proposals import ProposalStore
+    from core.toolbox import Toolbox
+    from core.tools import Agency
+    from daemon.proactive import Briefing
+    from daemon.toolbox.builtin import build
+
+    models = a.extra or [m for m in (_cfg("JARVIS_CHAT_MODEL"),
+                                     _cfg("JARVIS_HEAVY_MODEL")) if m]
+    if not models:
+        print("usage: ./cli.py bench <model> [model ...]")
+        return 1
+
+    # Fail fast rather than timing out ten cases per model against a dead server.
+    try:
+        import requests
+        requests.get("http://127.0.0.1:11434/api/tags", timeout=3).raise_for_status()
+    except Exception:
+        print(f"{RED}ollama unreachable at 127.0.0.1:11434{OFF}")
+        print(f"{DIM}start it, then re-run{OFF}")
+        return 1
+
+    # Nothing here may touch the real system: notes go to a scratch file, no bus
+    # is attached, and mutating tools stop at a Proposal that is never confirmed.
+    scratch = os.path.join(tempfile.mkdtemp(), "bench-notes.md")
+    reports = []
+
+    for model in models:
+        print(f"\n{DIM}--- {model} " + "-" * max(0, 50 - len(model)) + OFF)
+        report = ModelReport(model)
+        for case in DEFAULT_CASES:
+            box = Toolbox(registry=build(bus=None, briefing=Briefing(),
+                                         notes_path=scratch),
+                          agency=Agency.ACTUATOR, proposals=ProposalStore())
+            agent = Agent(toolbox=box, chat=OllamaChat(model))
+            started = time.monotonic()
+            tool, args, text, err = None, {}, "", ""
+            try:
+                turn = agent.say(case.prompt)
+                text = turn.text
+                if turn.tools_used:
+                    tool = turn.tools_used[-1]
+                if turn.proposal is not None:      # mutating: never confirmed
+                    tool, args = turn.proposal.tool, turn.proposal.args
+            except Exception as exc:
+                err = f"{type(exc).__name__}: {exc}"
+            secs = time.monotonic() - started
+
+            r = CaseResult(case, tool, args, text, secs, err)
+            report.results.append(r)
+            mark = f"{G}ok{OFF}" if (r.ok_tool and r.ok_args) else f"{RED}no{OFF}"
+            print(f"  {mark} {secs:5.1f}s  {case.prompt[:44]:<44} "
+                  f"{DIM}{tool or '-'}{OFF}")
+        reports.append(report)
+
+    print("\n" + render(reports))
+    for rep in reports:
+        if rep.failures():
+            print(f"\n{DIM}{rep.model} missed:{OFF}\n{render_failures(rep)}")
     return 0
 
 
@@ -267,6 +337,7 @@ def main() -> int:
     for name, fn, takes_extra in (
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
             ("tools", cmd_tools, False), ("chat", cmd_chat, False),
+            ("bench", cmd_bench, True),
             ("listen", cmd_listen, True),
             ("presence", cmd_presence, True), ("gestures", cmd_gestures, True),
             ("watch", cmd_watch, False),
