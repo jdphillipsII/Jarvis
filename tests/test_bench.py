@@ -125,10 +125,30 @@ def test_default_suite_covers_the_important_shapes():
 
 
 def test_every_default_case_names_a_real_tool():
-    """A typo in the suite would silently score every model as wrong."""
-    from core.toolbox import Toolbox
+    """A typo in the suite would silently score every model as wrong.
+
+    Built with a heavy model so the escalation tool is present — the suite has
+    cases for it, and those are skipped at runtime when it is not configured.
+    """
     from core.tools import Agency
     from daemon.toolbox.builtin import build
-    names = {t.name for t in build().available(Agency.AGENTIC)}
+    registry = build(heavy_chat=lambda messages, tools=None: {"content": ""})
+    names = {t.name for t in registry.available(Agency.AGENTIC)}
     for c in DEFAULT_CASES:
         assert c.expect_tool is None or c.expect_tool in names, c.expect_tool
+
+
+# ---- escalation cases ----
+
+def test_heavy_cases_are_skipped_without_a_heavy_model():
+    from core.bench import applicable
+    assert len(applicable(DEFAULT_CASES, has_heavy=False)) < len(DEFAULT_CASES)
+    assert all(not c.requires_heavy
+               for c in applicable(DEFAULT_CASES, has_heavy=False))
+
+
+def test_escalation_is_scored_in_both_directions():
+    """Reaching for the slow model matters; so does resisting it."""
+    heavy_cases = [c for c in DEFAULT_CASES if c.requires_heavy]
+    assert any(c.expect_tool == "reason.deeply" for c in heavy_cases)
+    assert any(c.expect_tool is None for c in heavy_cases)

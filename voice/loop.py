@@ -129,8 +129,10 @@ def load_wake():
 
 def build_agent() -> Agent:
     agency = Agency.parse(cfg("JARVIS_AGENCY", "advisory"))
+    heavy = cfg("JARVIS_HEAVY_MODEL", "")
     bus = Bus(registry=Registry.load())
-    box = Toolbox(registry=build_tools(bus=bus), agency=agency)
+    box = Toolbox(registry=build_tools(
+        bus=bus, heavy_chat=OllamaChat(heavy) if heavy else None), agency=agency)
     print(f"agency={agency.name.lower()}  "
           f"tools={[t.name for t in box.registry.available(agency)]}")
     return Agent(toolbox=box, chat=OllamaChat(CHAT_MODEL), persona=PERSONA)

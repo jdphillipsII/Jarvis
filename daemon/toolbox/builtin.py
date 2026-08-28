@@ -22,9 +22,16 @@ ACTIVITIES = ["COMMAND", "WORKSHOP", "FORGE"]
 
 
 def build(bus: Optional[Bus] = None, briefing=None,
-          notes_path: str = "~/jarvis-notes.md") -> ToolRegistry:
+          notes_path: str = "~/jarvis-notes.md",
+          heavy_chat=None) -> ToolRegistry:
     reg = ToolRegistry()
     notes = os.path.expanduser(notes_path)
+
+    # Escalation, when a heavy model is configured. Registered first so it sits
+    # at the top of the catalogue the fast model reads.
+    if heavy_chat is not None:
+        from core.escalation import deep_thought_tool
+        reg.add(deep_thought_tool(heavy_chat))
 
     # ---- ADVISORY: read and report ----
     def system_status() -> Dict[str, Any]:

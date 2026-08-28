@@ -163,6 +163,23 @@ one is as wrong as picking the wrong one. Nothing is executed: notes go to a
 scratch file, no bus is attached, and mutating tools stop at a proposal that is
 never confirmed.
 
+### Two tiers
+
+The fast model answers and routes; when a question genuinely exceeds it, it
+escalates by calling `reason.deeply`. Making that a **tool** rather than a
+heuristic means the model that actually read the question decides, instead of
+a keyword list guessing from outside — and it makes escalation measurable:
+`bench` scores both reaching for the slow model when a question deserves it and
+resisting when it doesn't.
+
+    JARVIS_CHAT_MODEL=qwen2.5:7b      # routes and answers
+    JARVIS_HEAVY_MODEL=qwen2.5:32b    # thinks; leave empty to disable
+
+The heavy model is given **no tools**. It reasons, it does not act — every side
+effect stays on the fast path where the consent gate lives. A heavy model that
+is unreachable degrades to an error the fast model can recover from, not a
+broken turn.
+
 ### Reasoning models
 
 Hybrid-reasoning models emit deliberation as `<think>...</think>` and sometimes

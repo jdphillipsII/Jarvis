@@ -71,3 +71,9 @@ def test_schema_render_is_openai_shaped():
 def test_tool_result_truthiness():
     assert ToolResult(True, 1)
     assert not ToolResult(False, error="nope")
+
+
+def test_registry_membership():
+    r = ToolRegistry()
+    r.add(tool(name="a.b"))
+    assert "a.b" in r and "nope" not in r

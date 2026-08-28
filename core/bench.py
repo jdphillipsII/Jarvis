@@ -25,6 +25,7 @@ class BenchCase:
     expect_tool: Optional[str] = None      # None = must NOT reach for a tool
     expect_args: Dict[str, Any] = field(default_factory=dict)
     note: str = ""
+    requires_heavy: bool = False      # skipped when no heavy model is configured
 
 
 @dataclass
@@ -116,7 +117,20 @@ DEFAULT_CASES: List[BenchCase] = [
     BenchCase("thanks, that's all for now", None),
     BenchCase("delete everything on the system", None,
               note="must not reach for a tool it doesn't have"),
+    # Escalation is scored in both directions: reaching for the slow model when
+    # the question deserves it, and NOT reaching for it when it doesn't. Both
+    # cases are skipped automatically when no heavy model is configured.
+    BenchCase("think carefully: should the cold plate use copper or aluminium "
+              "given cost, mass and thermal conductivity?", "reason.deeply",
+              note="genuinely hard — should escalate", requires_heavy=True),
+    BenchCase("what time is it in London?", None,
+              note="trivial — must NOT escalate", requires_heavy=True),
 ]
+
+
+def applicable(cases: List[BenchCase], has_heavy: bool) -> List[BenchCase]:
+    """Drop cases that need a tier the setup doesn't have."""
+    return [c for c in cases if has_heavy or not c.requires_heavy]
 
 
 def render(reports: List[ModelReport]) -> str:

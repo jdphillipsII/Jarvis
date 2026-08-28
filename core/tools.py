@@ -104,6 +104,9 @@ class ToolRegistry:
     def get(self, name: str) -> Optional[Tool]:
         return self._tools.get(name)
 
+    def __contains__(self, name: object) -> bool:
+        return name in self._tools
+
     def available(self, agency: Agency) -> List[Tool]:
         """Only what this agency level permits — the model sees nothing else."""
         return [t for t in self._tools.values() if t.min_agency <= agency]

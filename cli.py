@@ -112,7 +112,7 @@ def cmd_bench(a) -> int:
     import tempfile, time
     from core.agent import Agent
     from core.bench import (DEFAULT_CASES, CaseResult, ModelReport,
-                            render, render_failures)
+                            applicable, render, render_failures)
     from core.ollama import OllamaChat
     from core.proposals import ProposalStore
     from core.toolbox import Toolbox
@@ -143,9 +143,11 @@ def cmd_bench(a) -> int:
     for model in models:
         print(f"\n{DIM}--- {model} " + "-" * max(0, 50 - len(model)) + OFF)
         report = ModelReport(model)
-        for case in DEFAULT_CASES:
+        for case in applicable(DEFAULT_CASES, bool(_cfg('JARVIS_HEAVY_MODEL', ''))):
+            heavy = _cfg("JARVIS_HEAVY_MODEL", "")
             box = Toolbox(registry=build(bus=None, briefing=Briefing(),
-                                         notes_path=scratch),
+                                         notes_path=scratch,
+                                         heavy_chat=OllamaChat(heavy) if heavy else None),
                           agency=Agency.ACTUATOR, proposals=ProposalStore())
             agent = Agent(toolbox=box, chat=OllamaChat(model))
             started = time.monotonic()
@@ -186,10 +188,16 @@ def cmd_chat(_) -> int:
     from daemon.toolbox.builtin import build
 
     agency = Agency.parse(_cfg("JARVIS_AGENCY", "advisory"))
+    fast = _cfg("JARVIS_CHAT_MODEL", "qwen2.5:7b")
+    heavy = _cfg("JARVIS_HEAVY_MODEL", "")
     bus = Bus(registry=Registry.load())
     bus.subscribe("*", lambda i: print(f"  {DIM}[bus] {i.intent} {i.args}{OFF}"))
-    box = Toolbox(registry=build(bus=bus), agency=agency)
-    agent = Agent(toolbox=box, chat=OllamaChat(_cfg("JARVIS_CHAT_MODEL", "qwen2.5:7b")))
+    box = Toolbox(registry=build(bus=bus,
+                                 heavy_chat=OllamaChat(heavy) if heavy else None),
+                  agency=agency)
+    agent = Agent(toolbox=box, chat=OllamaChat(fast))
+    if heavy:
+        print(f"{DIM}fast={fast}  heavy={heavy} (via reason.deeply){OFF}")
 
     print(f"{DIM}agency={agency.name.lower()}  "
           f"tools={len(box.registry.available(agency))}  (ctrl-d to exit){OFF}\n")
