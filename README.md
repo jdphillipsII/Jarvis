@@ -126,6 +126,7 @@ Your settings live in `config/jarvis.env`, which is gitignored and created from
 | `tools` | what JARVIS can do at the current agency, and how many are hidden above it |
 | `chat` | text-mode conversation with the full tool loop — no mic needed |
 | `bench` | score models on tool choice, arguments, persona and speed |
+| `mcp` | serve the toolbox over MCP on stdio |
 | `listen` | the voice loop |
 | `presence` | the camera presence daemon |
 | `gestures` | the camera gesture daemon |
@@ -162,6 +163,29 @@ Three of the ten cases expect *no* tool call, because over-eagerly reaching for
 one is as wrong as picking the wrong one. Nothing is executed: notes go to a
 scratch file, no bus is attached, and mutating tools stop at a proposal that is
 never confirmed.
+
+## MCP — sharing the toolbox
+
+    ./cli.py mcp        # stdio JSON-RPC; wire into any MCP client
+
+JARVIS's tools — desktop control, workshop, notes, telemetry, escalation — are
+publishable over MCP, which is what Hermes Agent, Claude Desktop and most other
+agents already speak. Register it as a stdio server:
+
+```json
+{
+  "mcpServers": {
+    "jarvis": { "command": "/home/you/jarvis/cli.py", "args": ["mcp"] }
+  }
+}
+```
+
+**The consent model survives the crossing.** A mutating tool called over MCP
+does not execute — it returns a proposal and an id, and a separate
+`jarvis_confirm` call runs it. An external agent cannot do anything
+irreversible without a second, deliberate act. Tools above the configured
+agency are not listed, and calling one is made indistinguishable from calling a
+tool that does not exist.
 
 ### Two tiers
 

@@ -6,6 +6,7 @@
     jarvis tools           list what JARVIS can do at the current agency
     jarvis chat            text-mode conversation with the full tool loop
     jarvis bench [models]  score models on tool choice, args, persona, speed
+    jarvis mcp             serve the toolbox over MCP on stdio
     jarvis listen          the voice loop
     jarvis presence        the camera presence daemon
     jarvis gestures        the camera gesture daemon
@@ -104,6 +105,25 @@ def cmd_status(_) -> int:
         return 1
     for key, value in sorted(r.value.items()):
         print(f"  {key:<16} {value}")
+    return 0
+
+
+def cmd_mcp(_) -> int:
+    """Serve the toolbox over MCP on stdio (for Hermes Agent, Claude Desktop, ...)."""
+    from core.bus import Bus
+    from core.mcp_server import McpServer
+    from core.ollama import OllamaChat
+    from core.registry import Registry
+    from core.toolbox import Toolbox
+    from core.tools import Agency
+    from daemon.toolbox.builtin import build
+
+    heavy = _cfg("JARVIS_HEAVY_MODEL", "")
+    box = Toolbox(registry=build(bus=Bus(registry=Registry.load()),
+                                 heavy_chat=OllamaChat(heavy) if heavy else None),
+                  agency=Agency.parse(_cfg("JARVIS_AGENCY", "advisory")))
+    # stdout is the protocol channel — nothing else may write to it.
+    McpServer(box).serve()
     return 0
 
 
@@ -345,7 +365,7 @@ def main() -> int:
     for name, fn, takes_extra in (
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
             ("tools", cmd_tools, False), ("chat", cmd_chat, False),
-            ("bench", cmd_bench, True),
+            ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
             ("listen", cmd_listen, True),
             ("presence", cmd_presence, True), ("gestures", cmd_gestures, True),
             ("watch", cmd_watch, False),
