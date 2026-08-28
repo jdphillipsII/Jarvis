@@ -23,6 +23,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .affirmation import is_affirmative, is_negative
 from .proposals import Proposal, ProposalStatus
+from .reasoning import clean_reply
 from .toolbox import Toolbox
 from .tools import ToolResult
 
@@ -114,7 +115,10 @@ class Agent:
         messages = [{"role": "system", "content": self._system()}] + self.history
 
         for _ in range(self.max_rounds):
-            reply = self.chat(messages, self.toolbox.schemas())
+            # Normalise before anything looks at it: reasoning models put their
+            # deliberation in the content and sometimes their tool calls too.
+            # Unstripped, JARVIS reads its own thinking aloud.
+            reply = clean_reply(self.chat(messages, self.toolbox.schemas()))
             calls = reply.get("tool_calls") or []
 
             if not calls:

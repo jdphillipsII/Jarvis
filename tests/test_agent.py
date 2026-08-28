@@ -187,3 +187,38 @@ def test_history_is_trimmed(registry):
     for i in range(20):
         a.say(f"question {i}")
     assert len(a.history) <= 6
+
+
+# ---- reasoning models (Hermes 4, Qwen 3.x) ----
+
+def test_reasoning_is_never_spoken(registry):
+    """The whole point: JARVIS must not read its own deliberation aloud."""
+    model = FakeModel({"role": "assistant", "content":
+                       "<think>The user asked about a mountain. Ben Nevis.</think>"
+                       "Ben Nevis, sir."})
+    turn = agent(registry, model).say("tallest in Scotland?")
+    assert turn.text == "Ben Nevis, sir."
+    assert "think" not in turn.text
+
+
+def test_a_text_form_tool_call_still_executes(registry):
+    """Hermes emits <tool_call> as text; it must reach the toolbox anyway."""
+    model = FakeModel(
+        {"role": "assistant", "content":
+         '<think>check the gpu</think>'
+         '<tool_call>{"name":"system.status","arguments":{}}</tool_call>'},
+        says("Sixty-one degrees, sir."))
+    turn = agent(registry, model).say("how's the GPU?")
+    assert turn.tools_used == ["system.status"]
+    assert turn.text == "Sixty-one degrees, sir."
+
+
+def test_text_form_mutating_call_still_asks_permission(registry):
+    """Consent must not be bypassed by the call arriving as text."""
+    model = FakeModel({"role": "assistant", "content":
+                       '<tool_call>{"name":"notes.append",'
+                       '"arguments":{"text":"buy a mount"}}</tool_call>'})
+    a = agent(registry, model)
+    turn = a.say("note that")
+    assert turn.awaiting_confirmation
+    assert a.pending.args == {"text": "buy a mount"}

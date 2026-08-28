@@ -143,6 +143,18 @@ level is never shown to the model, so it cannot ask for what it cannot see),
 Agency is set by `JARVIS_AGENCY` in `config/jarvis.env` and is the user's to
 raise. An unrecognised value fails closed to `advisory`.
 
+### Reasoning models
+
+Hybrid-reasoning models emit deliberation as `<think>...</think>` and sometimes
+tool calls as `<tool_call>{...}</tool_call>` text rather than in the API's
+structured field. Both are fine in a chat window and wrong for a voice
+assistant — unstripped reasoning gets read aloud, and a tool call the transport
+never surfaced never runs.
+
+`core/reasoning.py` normalises any such model to behave like a plain one. The
+structured field always wins, so a model that does it properly is untouched.
+Swapping models is a one-line config change.
+
 ### Tool calls in conversation
 
     you> how's the GPU?
