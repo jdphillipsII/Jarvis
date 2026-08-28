@@ -222,3 +222,31 @@ def test_text_form_mutating_call_still_asks_permission(registry):
     turn = a.say("note that")
     assert turn.awaiting_confirmation
     assert a.pending.args == {"text": "buy a mount"}
+
+
+# ---- persona ----
+
+def test_persona_and_tool_catalogue_both_reach_the_model(registry):
+    model = FakeModel(says("Right, sir."))
+    agent(registry, model).say("hello")
+    system = model.seen_messages[0][0]
+    assert system["role"] == "system"
+    assert "sir" in system["content"]
+    assert "system.status" in system["content"]      # the catalogue
+
+
+def test_persona_states_the_rule_and_shows_it(registry):
+    """Adjectives don't move a 7B; worked examples do. Keep both."""
+    from core.agent import PERSONA
+    assert "sir" in PERSONA.lower()
+    assert PERSONA.count('"') >= 8                   # example dialogue present
+    assert "As an AI" in PERSONA                     # the negative example
+
+
+def test_persona_is_overridable(registry):
+    from core.agent import Agent
+    from core.toolbox import Toolbox
+    a = Agent(toolbox=Toolbox(registry=registry, agency=Agency.ACTUATOR),
+              chat=(m := FakeModel(says("ok"))), persona="You are a pirate.")
+    a.say("hi")
+    assert "pirate" in m.seen_messages[0][0]["content"]
