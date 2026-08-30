@@ -60,6 +60,21 @@ def build(bus: Optional[Bus] = None, briefing=None,
     reg.add(Tool("system.status", "Report GPU temperature, disk space and load.",
                  system_status))
 
+    def unit_convert(value: str, to: str) -> str:
+        from core.units import convert
+        return str(convert(value, to))
+
+    reg.add(Tool("units.convert",
+                 "Convert a physical quantity between units. Handles offset "
+                 "units correctly (20 degC is 293.15 K, not 20 K) and refuses "
+                 "conversions between incompatible dimensions.",
+                 unit_convert,
+                 parameters={"value": {"type": "quantity",
+                                       "description": "the quantity to convert"},
+                             "to": {"type": "string",
+                                    "description": "target unit, e.g. 'K', 'mm', 'psi'"}},
+                 required=("value", "to")))
+
     def read_briefing() -> str:
         return briefing.summary() if briefing else "Nothing held, sir."
 

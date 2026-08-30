@@ -67,3 +67,21 @@ def test_briefing_tool_reads_the_queue(notes):
     br = Briefing()
     br.add(Observation("the build passed", Urgency.INFO, "ci", "1"))
     assert "build passed" in box(notes, briefing=br).invoke("briefing.read").value
+
+
+def test_units_convert_tool(notes):
+    b = box(notes)
+    assert b.invoke("units.convert", {"value": "80 bar", "to": "Pa"}).value == "8e+06 Pa"
+    assert b.invoke("units.convert", {"value": "20 degC", "to": "K"}).value == "293.15 K"
+
+
+def test_units_convert_refuses_incompatible(notes):
+    r = box(notes).invoke("units.convert", {"value": "5 kg", "to": "m"})
+    assert not r.ok and "cannot convert" in r.error
+
+
+def test_units_convert_is_advisory(notes):
+    """Reading a conversion has no side effects — never ask permission."""
+    from core.tools import Agency
+    assert box(notes, Agency.ADVISORY).invoke(
+        "units.convert", {"value": "1 inch", "to": "mm"}).ok

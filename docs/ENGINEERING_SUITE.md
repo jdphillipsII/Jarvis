@@ -222,8 +222,11 @@ tool goes live; it makes everything after it safer.
 
 Sequenced by value per hour, not by ambition.
 
-1. **`units.convert` + the `quantity` argument type** — small, and everything
-   after it inherits the safety
+1. ~~**`units.convert` + the `quantity` argument type**~~ — **done.**
+   `core/units.py`, with affine units handled (20 degC is 293.15 K, and
+   `W/degC` is refused with an explanation rather than a "unknown symbol"
+   error). Tools declare `{"type": "quantity", "dimension": "pressure"}` and a
+   bare `80` is refused instead of silently becoming 80 Pa.
 2. **Atlas physics tools** (thermal, structural, verify, cross-check) — real
    answers at voice speed, from code that already exists and is tested
 3. **git lab notebook** — cheap, and it means the agent's work leaves a trace

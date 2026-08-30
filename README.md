@@ -204,6 +204,21 @@ effect stays on the fast path where the consent gate lives. A heavy model that
 is unreachable degrades to an error the fast model can recover from, not a
 broken turn.
 
+### Physical arguments
+
+A tool argument declared `{"type": "number"}` will happily accept `45` when the
+handler wanted kelvin and the model was thinking in Celsius. Declaring it
+`{"type": "quantity", "dimension": "temperature"}` makes that a refusal at the
+call boundary instead of a plausible wrong answer three steps downstream.
+
+`core/units.py` is seven SI base dimensions with `Fraction` exponents, ported
+from Atlas and dependency-free. Offset units are handled explicitly — 20 degC is
+293.15 K, not 20 K — and are absolute-temperature only, so `W/degC` is refused
+with an explanation, since a *difference* of 1 degC is 1 K.
+
+Quantities are presented to the model as strings (`"80 bar"`), which models emit
+far more reliably than a typed object.
+
 ### Reasoning models
 
 Hybrid-reasoning models emit deliberation as `<think>...</think>` and sometimes

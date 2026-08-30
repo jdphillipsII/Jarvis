@@ -77,3 +77,47 @@ def test_registry_membership():
     r = ToolRegistry()
     r.add(tool(name="a.b"))
     assert "a.b" in r and "nope" not in r
+
+
+# ---- quantity arguments ----
+
+def qtool(dimension=None):
+    spec = {"type": "quantity"}
+    if dimension:
+        spec["dimension"] = dimension
+    return tool(parameters={"p": spec}, required=("p",))
+
+
+def test_quantity_argument_accepts_a_unit_string():
+    assert qtool("pressure").validate({"p": "80 bar"}) is None
+
+
+def test_wrong_dimension_is_refused():
+    problem = qtool("pressure").validate({"p": "20 degC"})
+    assert "must be a pressure" in problem
+
+
+def test_a_bare_number_is_not_a_pressure():
+    """The whole point: 80 with no unit must not silently become 80 Pa."""
+    assert "must be a pressure" in qtool("pressure").validate({"p": 80})
+
+
+def test_unknown_unit_is_named():
+    assert "flurbles" in qtool("pressure").validate({"p": "80 flurbles"})
+
+
+def test_dimension_free_quantity_accepts_anything_parseable():
+    t = qtool()
+    assert t.validate({"p": "3 mm"}) is None and t.validate({"p": "80 bar"}) is None
+    assert t.validate({"p": "3 flurbles"}) is not None
+
+
+def test_unknown_dimension_in_the_schema_is_caught():
+    assert "unknown dimension" in qtool("spookiness").validate({"p": "1 m"})
+
+
+def test_quantity_is_presented_to_the_model_as_a_string():
+    """Models emit "80 bar" far more reliably than a typed object."""
+    prop = qtool("pressure").schema()["function"]["parameters"]["properties"]["p"]
+    assert prop["type"] == "string"
+    assert "pressure" in prop["description"]

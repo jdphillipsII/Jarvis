@@ -37,6 +37,12 @@ class Agency(IntEnum):
 JSON_TYPES = {"string": str, "number": (int, float), "integer": int,
               "boolean": bool, "array": list, "object": dict}
 
+# A physical argument declared {"type": "quantity", "dimension": "temperature"}
+# is checked dimensionally at the call boundary. "45" for a kelvin argument when
+# the model meant Celsius becomes a refusal here rather than a plausible wrong
+# number three steps downstream.
+QUANTITY = "quantity"
+
 
 @dataclass(frozen=True)
 class Tool:
@@ -51,10 +57,25 @@ class Tool:
     risk: str = ""
 
     def schema(self) -> Dict[str, Any]:
-        """OpenAI/Ollama-style function schema."""
+        """OpenAI/Ollama-style function schema.
+
+        `quantity` is ours, not JSON Schema's, so it is presented to the model
+        as a string with the expected dimension spelled out in the description —
+        models emit "80 bar" far more reliably than a typed object.
+        """
+        props: Dict[str, Any] = {}
+        for key, spec in self.parameters.items():
+            if spec.get("type") == QUANTITY:
+                dim = spec.get("dimension", "any")
+                hint = spec.get("description", "")
+                props[key] = {"type": "string", "description":
+                              (f"{hint} " if hint else "")
+                              + f"a {dim} with units, e.g. \"80 bar\", \"20 degC\""}
+            else:
+                props[key] = spec
         return {"type": "function", "function": {
             "name": self.name, "description": self.description,
-            "parameters": {"type": "object", "properties": self.parameters,
+            "parameters": {"type": "object", "properties": props,
                            "required": list(self.required)}}}
 
     def validate(self, args: Dict[str, Any]) -> Optional[str]:
@@ -66,14 +87,37 @@ class Tool:
         if unknown:
             return f"unknown argument(s): {', '.join(sorted(unknown))}"
         for key, value in args.items():
-            want = self.parameters[key].get("type")
+            spec = self.parameters[key]
+            want = spec.get("type")
+            if want == QUANTITY:
+                problem = _check_quantity(key, value, spec.get("dimension"))
+                if problem:
+                    return problem
+                continue
             py = JSON_TYPES.get(want)
             if py and not isinstance(value, py):
                 return f"argument '{key}' must be {want}"
-            allowed = self.parameters[key].get("enum")
+            allowed = spec.get("enum")
             if allowed and value not in allowed:
                 return f"argument '{key}' must be one of {allowed}"
         return None
+
+
+def _check_quantity(key: str, value: Any, dimension: Optional[str]) -> Optional[str]:
+    from .units import UnitError, dimension_named, parse_quantity
+    try:
+        q = parse_quantity(value)
+    except UnitError as exc:
+        return f"argument '{key}': {exc}"
+    if dimension:
+        try:
+            want = dimension_named(dimension)
+        except UnitError as exc:
+            return f"argument '{key}': {exc}"
+        if q.dim != want:
+            return (f"argument '{key}' must be a {dimension} ({want}), "
+                    f"but '{q}' is {q.dim}")
+    return None
 
 
 @dataclass
