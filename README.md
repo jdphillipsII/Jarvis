@@ -236,6 +236,13 @@ later unrelated "yes" cannot fire it.
 Tool errors are fed back to the model rather than raised, so a wrong argument
 becomes something it corrects on the next round instead of a dead end.
 
+## Where this is going
+
+[docs/ENGINEERING_SUITE.md](docs/ENGINEERING_SUITE.md) — the workshop loop
+closed end to end: model, analyse, source, fabricate, measure, record. Every
+tool family gets an MCP server that runs where the tool lives, so SolidWorks on
+the Windows side of the dual boot is just another server over the tailnet.
+
 ## Build order
 
 - [x] **0** Fedora install
