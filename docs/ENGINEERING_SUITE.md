@@ -94,7 +94,7 @@ needs to know SolidWorks exists — it is just another MCP server.
 | `atlas_cad.thermal` | in-process | advisory | **0.083 ms** — R_th, Δp, Reynolds, worst case under maldistribution |
 | `atlas_cad.tier2_fd` | in-process | advisory | ~50 ms — *independent* 2-D FD method, returns agree / refine / disagree |
 | `atlas_cad.flow_network` | in-process | advisory | ms — loop network solve |
-| **CoolProp** | stdio MCP | advisory | µs — real fluid properties. **Add this early**: near-critical CO₂ at 75–80 bar is exactly where ideal-gas assumptions fall apart, and it is the working fluid for the whole cooling programme. |
+| **CoolProp** | in-process ✅ | advisory | µs — `fluid.state`, `fluid.pseudocritical`, `fluid.critical`. Two-phase states are refused rather than guessed; near-critical states are flagged as sensitive. |
 | OpenFOAM | stdio MCP | advisory | minutes–hours, offer/notify |
 | Elmer | stdio MCP | advisory | minutes, multiphysics |
 
@@ -243,9 +243,10 @@ Sequenced by value per hour, not by ambition.
 
 Things the enumeration above shows are missing rather than merely unbuilt:
 
-- **CoolProp is not wired anywhere**, and the entire cooling programme runs on
-  near-critical CO₂ at 75–80 bar — precisely the regime where ideal-gas
-  approximations stop being approximations. This belongs in tier 1, not later.
+- ~~CoolProp is not wired anywhere~~ — **done.** Measured at the loop's own
+  operating point: CO₂ at 80 bar / 35 degC has cp ≈ 29,600 J/kg/K against an
+  ideal-gas value near 840. A design sized on the wrong one is wrong by
+  thirty-five times.
 - **Tolerance stack-up** is listed as deferred in Atlas's own design doc. Every
   process in the catalogue carries an ISO 2768 class, so the inputs exist; the
   Monte Carlo over them does not.

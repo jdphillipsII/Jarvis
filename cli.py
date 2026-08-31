@@ -66,6 +66,12 @@ def cmd_doctor(_) -> int:
           "sudo dnf install -y pipewire-utils")
     check("voice venv", os.path.exists(os.path.join(ROOT, ".venvs/voice/bin/python")),
           "bash setup/voice-setup.sh")
+    try:
+        from core import fluids
+        have_cp = fluids.available()
+    except Exception:
+        have_cp = False
+    check("CoolProp (real fluids)", have_cp, "uv pip install CoolProp")
     voice = _cfg("JARVIS_VOICE", "en_GB-alan-medium")
     check(f"piper voice ({voice})",
           os.path.exists(os.path.join(ROOT, "models/piper", voice + ".onnx")),

@@ -12,6 +12,7 @@ dependencies = [
 [project.optional-dependencies]
 voice  = ["openwakeword", "faster-whisper", "piper-tts", "sounddevice"]
 vision = ["opencv-python", "mediapipe"]
+fluids = ["CoolProp>=6.4"]
 dev    = ["pytest>=8.0"]
 
 [project.scripts]

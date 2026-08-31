@@ -79,6 +79,12 @@ say "core + test deps"
 uv pip install -q -r requirements-dev.txt numpy requests
 ok "pyyaml pytest numpy requests"
 
+# Real fluid properties. Small, pure-Python wheel, and the whole cooling
+# programme runs near CO2's critical point where ideal-gas values are wrong
+# by more than an order of magnitude.
+say "fluid properties"
+uv pip install -q CoolProp && ok "CoolProp" || warn "CoolProp unavailable (optional)"
+
 if [[ $CORE_ONLY -eq 0 ]]; then
   say "voice deps"
   uv pip install -q openwakeword faster-whisper piper-tts sounddevice

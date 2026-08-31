@@ -64,6 +64,46 @@ def build(bus: Optional[Bus] = None, briefing=None,
         from core.units import convert
         return str(convert(value, to))
 
+    # Real fluid properties, when CoolProp is present. Registered only if it
+    # imports — the model should not be offered a tool it cannot run.
+    from core import fluids
+    if fluids.available():
+        reg.add(Tool(
+            "fluid.state",
+            "Real thermophysical properties of a fluid at a pressure and "
+            "temperature: density, cp, viscosity, conductivity, Prandtl, "
+            "enthalpy. Use this rather than ideal-gas values near the critical "
+            "point, where they differ by more than an order of magnitude.",
+            lambda fluid, pressure, temperature: fluids.state(
+                fluid, pressure, temperature).as_dict(),
+            parameters={
+                "fluid": {"type": "string",
+                          "description": "e.g. CO2, Water, Nitrogen, R134a"},
+                "pressure": {"type": "quantity", "dimension": "pressure"},
+                "temperature": {"type": "quantity", "dimension": "temperature"}},
+            required=("fluid", "pressure", "temperature")))
+
+        reg.add(Tool(
+            "fluid.pseudocritical",
+            "The temperature where specific heat peaks at a given pressure "
+            "(the Widom line). Above the critical pressure there is no phase "
+            "change, but cp still has a sharp maximum — this is the "
+            "temperature a near-critical loop is designed around.",
+            lambda fluid, pressure: str(
+                fluids.pseudocritical_temperature(fluid, pressure)),
+            parameters={
+                "fluid": {"type": "string"},
+                "pressure": {"type": "quantity", "dimension": "pressure"}},
+            required=("fluid", "pressure")))
+
+        reg.add(Tool(
+            "fluid.critical",
+            "Critical temperature and pressure of a fluid.",
+            lambda fluid: {
+                "T_crit": f"{fluids.critical(fluid)['T_crit_k'] - 273.15:.4g} degC",
+                "P_crit": f"{fluids.critical(fluid)['P_crit_pa'] / 1e5:.4g} bar"},
+            parameters={"fluid": {"type": "string"}}, required=("fluid",)))
+
     reg.add(Tool("units.convert",
                  "Convert a physical quantity between units. Handles offset "
                  "units correctly (20 degC is 293.15 K, not 20 K) and refuses "
