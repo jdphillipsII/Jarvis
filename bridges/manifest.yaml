@@ -1,0 +1,183 @@
+# Bridged MCP servers, and what each of their tools is permitted to do.
+#
+# A tool the server offers but this file does not name is NOT MOUNTED. That is
+# the point of the file: upstream ships a new version, a new tool appears, and
+# it stays invisible until a human has classified it. `jarvis bridges` prints
+# what was offered and not classified.
+#
+#   agency:  advisory | actuator | agentic   (the ceiling, not a request)
+#   mutates: true                            => returns a proposal, not a result
+#   quantities: {arg: dimension}             => dimensional check at the boundary
+#
+# `mutates: true` with `agency: advisory` is a load error. Advisory means no
+# side effects; a tool that writes is not advisory however harmless it looks.
+#
+# Nothing here is enabled. Enabling a bridge is a deliberate act, like raising
+# agency — set `enabled: true` once the server is actually installed.
+
+# ---------------------------------------------------------------------------
+# SolidWorks, on the Windows half of the dual boot, over the tailnet.
+# wzyn20051216/solidworks-automation-skill — COM automation, so SolidWorks has
+# to be running on that machine. Only needed for models that already live
+# there; Onshape covers new work.
+# ---------------------------------------------------------------------------
+solidworks:
+  description: SolidWorks COM bridge on the Windows side, via Tailscale
+  transport: http
+  url: http://skippy-win:8765/mcp
+  timeout_s: 60          # COM is slow, and a rebuild is slower
+  enabled: false
+  tools:
+    solidworks_health_check:        {agency: advisory}
+    solidworks_connect:             {agency: advisory}
+    solidworks_inspect_configurations: {agency: advisory}
+    solidworks_inspect_drawing:     {agency: advisory}
+    solidworks_review_active:       {agency: advisory}
+    solidworks_review_drawing:      {agency: advisory}
+    cadstudio_check_dfm:            {agency: advisory}
+    cadstudio_check_routing:        {agency: advisory}
+    cadstudio_review_advanced_geometry: {agency: advisory}
+    cadstudio_fea_preflight:        {agency: advisory}
+
+    solidworks_open_document:
+      agency: actuator
+      mutates: true
+      confirm_label: Open
+      description: >-
+        Open a SolidWorks file on the Windows machine. Mutating because it
+        changes what every other tool in this bridge is pointed at.
+    solidworks_save_document:
+      {agency: actuator, mutates: true, confirm_label: Save,
+       risk: overwrites the file on disk}
+    solidworks_export_active:
+      {agency: actuator, mutates: true, confirm_label: Export}
+    cadstudio_write_open_format:
+      {agency: actuator, mutates: true, confirm_label: Export}
+    cadstudio_prepare_fea:
+      {agency: actuator, mutates: true, confirm_label: Stage}
+    solidworks_create_basic_part:
+      {agency: actuator, mutates: true, confirm_label: Create}
+    solidworks_generate_drawing:
+      {agency: actuator, mutates: true, confirm_label: Draw}
+    solidworks_create_configuration:
+      {agency: actuator, mutates: true, confirm_label: Create}
+    solidworks_activate_configuration:
+      {agency: actuator, mutates: true, confirm_label: Switch}
+    solidworks_set_appearance:
+      {agency: actuator, mutates: true, confirm_label: Apply}
+    solidworks_set_component_fixed:
+      {agency: actuator, mutates: true, confirm_label: Fix}
+    solidworks_add_coincident_mate:
+      {agency: actuator, mutates: true, confirm_label: Mate}
+    solidworks_add_concentric_mate:
+      {agency: actuator, mutates: true, confirm_label: Mate}
+    solidworks_add_distance_mate:
+      agency: actuator
+      mutates: true
+      confirm_label: Mate
+      quantities: {distance: length}
+    solidworks_add_rotary_motor:
+      {agency: actuator, mutates: true, confirm_label: Add}
+    # Upstream's README spells this one `solidwords_`. If the running server
+    # agrees with the README, `jarvis bridges` reports this entry absent and
+    # the real name unclassified — change the line then.
+    solidworks_add_component:
+      {agency: actuator, mutates: true, confirm_label: Insert}
+
+# ---------------------------------------------------------------------------
+# build123d. pzfreo/build123d-mcp.
+#
+# Read the agency column before deciding this is a CAD tool: `execute` runs
+# arbitrary Python in a persistent session. It is an interpreter wearing a CAD
+# hat, and it is classified accordingly. The analysis half is the part worth
+# having at advisory — measure, validate, clearance, interference are exactly
+# the questions we want answered without a confirmation each time.
+# ---------------------------------------------------------------------------
+build123d:
+  description: build123d / OCCT geometry, local
+  transport: stdio
+  command: [uvx, build123d-mcp]
+  enabled: false
+  tools:
+    version:          {agency: advisory}
+    health_check:     {agency: advisory}
+    session_state:    {agency: advisory}
+    measure:          {agency: advisory}
+    validate:         {agency: advisory}
+    clearance:        {agency: advisory}
+    interference:     {agency: advisory}
+    cross_sections:   {agency: advisory}
+    shape_compare:    {agency: advisory}
+    design_audit:     {agency: advisory}
+    verify_spec:      {agency: advisory}
+    suggest_spec:     {agency: advisory}
+    diff_snapshot:    {agency: advisory}
+    render_view:      {agency: advisory}
+    last_error:       {agency: advisory}
+    repair_hints:     {agency: advisory}
+    workflow_hints:   {agency: advisory}
+    search_library:   {agency: advisory}
+
+    export:           {agency: actuator, mutates: true, confirm_label: Export}
+    import_cad_file:  {agency: actuator, mutates: true, confirm_label: Import}
+    load_part:        {agency: actuator, mutates: true, confirm_label: Load}
+    save_snapshot:    {agency: actuator, mutates: true, confirm_label: Save}
+    restore_snapshot: {agency: actuator, mutates: true, confirm_label: Restore}
+    reset:            {agency: actuator, mutates: true, confirm_label: Reset,
+                       risk: discards the session}
+
+    execute:
+      agency: agentic
+      mutates: true
+      confirm_label: Run
+      risk: >-
+        arbitrary Python in a persistent session — this is code execution, not
+        a modelling operation
+      description: >-
+        Run build123d Python in the CAD session. Prefer a PartGenome program
+        where one exists: the op vocabulary is closed and checkable, this is
+        not.
+
+# ---------------------------------------------------------------------------
+# 2D / DXF. U-C4N/Autocad-MCP, headless through ezdxf — no AutoCAD needed.
+#
+# 154 tools upstream; a working subset is classified here and the rest stay
+# invisible by design. `system_run_command` and `system_run_lisp` are
+# deliberately absent: an arbitrary-execution tool reached through a drawing
+# server is exactly the thing the manifest exists to keep off the list.
+# ---------------------------------------------------------------------------
+dxf:
+  description: headless 2D drafting and DXF via ezdxf
+  transport: stdio
+  command: [uvx, autocad-mcp, --headless]
+  enabled: false
+  tools:
+    system_about:           {agency: advisory}
+    system_capabilities:    {agency: advisory}
+    search_tools:           {agency: advisory}
+    analysis_measure_entity: {agency: advisory}
+    boundary_trace:         {agency: advisory}
+    drawing_preflight:      {agency: advisory}
+    drawing_critique:       {agency: advisory}
+    drawing_plan:           {agency: advisory}
+
+    drawing_new:            {agency: actuator, mutates: true, confirm_label: Create}
+    drawing_open:           {agency: actuator, mutates: true, confirm_label: Open}
+    drawing_save:           {agency: actuator, mutates: true, confirm_label: Save,
+                             risk: overwrites the file on disk}
+    drawing_export_dxf:     {agency: actuator, mutates: true, confirm_label: Export}
+    drawing_export_pdf:     {agency: actuator, mutates: true, confirm_label: Export}
+    drawing_audit:          {agency: actuator, mutates: true, confirm_label: Audit}
+    drawing_purge:          {agency: actuator, mutates: true, confirm_label: Purge,
+                             risk: deletes unreferenced objects}
+    drawing_undo:           {agency: actuator, mutates: true, confirm_label: Undo}
+    entity_line:            {agency: actuator, mutates: true, confirm_label: Draw}
+    entity_arc:             {agency: actuator, mutates: true, confirm_label: Draw}
+    entity_polyline:        {agency: actuator, mutates: true, confirm_label: Draw}
+    entity_fillet:          {agency: actuator, mutates: true, confirm_label: Modify}
+    entity_chamfer:         {agency: actuator, mutates: true, confirm_label: Modify}
+    dimension_linear:       {agency: actuator, mutates: true, confirm_label: Dimension}
+    dimension_diameter:     {agency: actuator, mutates: true, confirm_label: Dimension}
+    annotation_gdt_frame:   {agency: actuator, mutates: true, confirm_label: Annotate}
+    annotation_gdt_datum:   {agency: actuator, mutates: true, confirm_label: Annotate}
+    titleblock_apply_iso_a3: {agency: actuator, mutates: true, confirm_label: Apply}

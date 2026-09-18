@@ -6,6 +6,7 @@ at the default agency the model is never told it exists.
 """
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -18,12 +19,14 @@ from core.bus import Bus
 from core.intent import Intent
 from core.tools import Agency, Tool, ToolRegistry
 
+log = logging.getLogger("jarvis.toolbox.builtin")
+
 ACTIVITIES = ["COMMAND", "WORKSHOP", "FORGE"]
 
 
 def build(bus: Optional[Bus] = None, briefing=None,
           notes_path: str = "~/jarvis-notes.md",
-          heavy_chat=None) -> ToolRegistry:
+          heavy_chat=None, bridges: bool = True) -> ToolRegistry:
     reg = ToolRegistry()
     notes = os.path.expanduser(notes_path)
 
@@ -154,6 +157,16 @@ def build(bus: Optional[Bus] = None, briefing=None,
                  parameters={"cmd": {"type": "string"}}, required=("cmd",),
                  min_agency=Agency.AGENTIC, mutates=True, confirm_label="Execute",
                  risk="arbitrary command execution"))
+
+    # ---- borrowed: MCP servers that live somewhere else ----
+    # The CAD-driver layer is commodity (docs/PRIOR_ART.md), so we bridge it
+    # rather than rebuild it. Mounted last, so the tools we own read first in
+    # the catalogue. Nothing in the manifest ships enabled, which makes this a
+    # no-op until the user turns a bridge on.
+    if bridges:
+        from core.bridges import mount_all
+        for report in mount_all(reg):
+            log.info("%s", report.summary())
     return reg
 
 

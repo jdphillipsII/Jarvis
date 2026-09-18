@@ -4,6 +4,7 @@
     jarvis status          what's installed, configured and reachable
     jarvis doctor          check every prerequisite and say what's missing
     jarvis tools           list what JARVIS can do at the current agency
+    jarvis bridges         borrowed MCP servers: what is classified, what is not
     jarvis chat            text-mode conversation with the full tool loop
     jarvis bench [models]  score models on tool choice, args, persona, speed
     jarvis mcp             serve the toolbox over MCP on stdio
@@ -97,6 +98,49 @@ def cmd_tools(_) -> int:
     print(f"\n{DIM}! = requires confirmation"
           + (f"   ({hidden} tool(s) hidden above this agency)" if hidden else "")
           + OFF)
+    return 0
+
+
+def cmd_bridges(_) -> int:
+    """Show borrowed MCP servers and what each of their tools is permitted to do."""
+    from core.bridges import load_manifest, mount
+    from core.tools import Agency, ToolRegistry
+
+    manifest = load_manifest()
+    if not manifest:
+        print("no bridges declared (bridges/manifest.yaml)")
+        return 0
+
+    for name, spec in sorted(manifest.items()):
+        where = " ".join(spec.command) if spec.transport == "stdio" else spec.url
+        state = f"{GREEN}enabled{OFF}" if spec.enabled else f"{DIM}disabled{OFF}"
+        print(f"\n{name}  {state}  {DIM}{spec.transport} → {where}{OFF}")
+        if spec.description:
+            print(f"  {DIM}{spec.description}{OFF}")
+        for level in Agency:
+            named = sorted(p.name for p in spec.tools.values() if p.agency is level)
+            if named:
+                print(f"  {level.name.lower():<9} {len(named):>3}  "
+                      f"{DIM}{', '.join(named[:4])}"
+                      f"{' …' if len(named) > 4 else ''}{OFF}")
+
+        if not spec.enabled:
+            continue
+        # Enabled means we can ask the server what it actually offers, which is
+        # the only way to learn that the manifest has drifted from upstream.
+        try:
+            client = spec.connect()
+        except Exception as exc:
+            print(f"  {RED}unavailable{OFF}: {exc}")
+            continue
+        report = mount(ToolRegistry(), spec, client)
+        print(f"  {GREEN}{len(report.mounted)} mounted{OFF}")
+        for label, items, colour in (("unclassified", report.unclassified, DIM),
+                                     ("absent", report.absent, DIM),
+                                     ("disputed", report.disputed, RED)):
+            if items:
+                print(f"  {colour}{label}{OFF}: {', '.join(items)}")
+    print(f"\n{DIM}a tool with no manifest entry is not mounted{OFF}")
     return 0
 
 
@@ -370,7 +414,8 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn, takes_extra in (
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
-            ("tools", cmd_tools, False), ("chat", cmd_chat, False),
+            ("tools", cmd_tools, False), ("bridges", cmd_bridges, False),
+            ("chat", cmd_chat, False),
             ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
             ("listen", cmd_listen, True),
             ("presence", cmd_presence, True), ("gestures", cmd_gestures, True),
