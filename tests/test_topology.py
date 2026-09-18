@@ -211,3 +211,48 @@ def test_a_pointer_to_nothing_raises_rather_than_returning_none():
 def test_an_ordinal_past_the_end_raises():
     with pytest.raises(DanglingPointer, match="instance 9 of 3"):
         resolve("@edge:ports/entry_rim#9", prov())
+
+
+# ---- "all of them", which is what the original genomes meant by
+#      `edges: internal_channel_edges` and could not say ----
+
+def test_every_instance_round_trips():
+    p = Pointer.parse("@edge:channels/floor_rim#*")
+    assert p.every and p.ordinal is None
+    assert str(p) == "@edge:channels/floor_rim#*"
+
+
+def test_every_instance_satisfies_the_ordinal_requirement():
+    program = pattern_program()
+    program[4]["edges"] = ["@edge:ports/entry_rim#*"]
+    assert check_program(program) == []
+
+
+def test_the_ordinal_hint_offers_both_ways_out():
+    program = pattern_program()
+    program[4]["edges"] = ["@edge:ports/entry_rim"]
+    problem, = check_program(program)
+    assert "#1 for the first" in problem.suggestion and "#* for all" in problem.suggestion
+
+
+def test_expand_returns_every_instance():
+    from core.topology import expand
+    assert expand("@edge:ports/entry_rim#*", prov()) == ["e1", "e2", "e3"]
+    assert expand("@edge:ports/entry_rim#2", prov()) == ["e2"]
+    assert expand("@face:base/top", prov()) == ["f_top"]
+
+
+def test_resolve_refuses_a_plural_pointer_rather_than_picking_one():
+    with pytest.raises(PointerError, match="names every instance"):
+        resolve("@edge:ports/entry_rim#*", prov())
+
+
+def test_resolve_all_flattens_a_plural_pointer():
+    from core.topology import resolve_all
+    assert resolve_all(["@face:base/top", "@edge:ports/entry_rim#*"], prov()) == \
+        ["f_top", "e1", "e2", "e3"]
+
+
+def test_all_instances_is_not_a_positional_claim_so_it_carries_no_caveat():
+    assert Pointer.parse("@edge:channels/floor_rim#*").caveat == ""
+    assert Pointer.parse("@edge:channels/floor_rim#2").caveat != ""

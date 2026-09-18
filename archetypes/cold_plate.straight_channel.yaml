@@ -1,0 +1,121 @@
+# The archetype that was already here, implicitly: atlas_cad.thermal's
+# evaluate_cold_plate requires exactly these five parameter names, which means
+# the shape was decided long before anyone wrote it down. Written down.
+id: cold_plate.straight_channel
+summary: >-
+  A flat plate with n straight parallel channels milled into one face and
+  closed by a lid, fed from a manifold at each end.
+intent: chip_cold_plate
+
+provenance: >-
+  atlas_cad/examples/cold_plate.part.yaml (the C1 pilot class, design doc §9).
+  Physics: atlas_cad/thermal.py model v1 — lumped R_conduction + R_convection +
+  R_caloric, channel side walls credited as straight rectangular fins with
+  adiabatic tip, lid adiabatic. Incropera & DeWitt ch. 3 and 8.
+status: simulated
+evidence: >-
+  Certified through the checker battery as the C1 pilot class. Cross-checked by
+  atlas_cad/tier2_fd.py, an independent 2-D finite-difference method that
+  returns agree / refine / disagree rather than a second opinion dressed as
+  confirmation. No bench measurement yet — see the loop-closure gap in
+  docs/ENGINEERING_SUITE.md.
+
+material: CU_C110
+process: CNC_5AXIS_MILLING
+ports: [inlet, outlet, chip_face, mount_pattern_m4]
+analyses:
+  - atlas_cad.thermal.evaluate_cold_plate
+  - atlas_cad.tier2_fd
+  - atlas_cad.flow_network.evaluate_loop_network
+  - atlas_cad.verify_part
+
+parameters:
+  - {name: plate_width,    unit: mm, default: 100.0, bounds: [60.0, 120.0],
+     description: square footprint; also the channel length}
+  - {name: base_thickness, unit: mm, default: 6.0, bounds: [3.0, 12.0],
+     description: conduction path from the die face to the channel floor}
+  - {name: channel_width,  unit: mm, default: 1.2, bounds: [0.6, 3.0]}
+  - {name: channel_depth,  unit: mm, default: 3.0, bounds: [1.5, 6.0],
+     description: fin height, in the fin-efficiency term}
+  - name: n_channels
+    unit: "1"
+    default: 24
+    bounds: [8, 48]
+    integer: true
+    description: >-
+      more channels means more wetted area and less wall between them; the wall
+      thickness (W - n*w)/(n+1) going non-positive is a hard floor
+
+# Each clause is a line the evaluator itself draws. None of them is engineering
+# taste — outside these, evaluate_cold_plate returns valid=False and says why.
+applicability:
+  - quantity: coolant_phase
+    one_of: [single_phase_liquid]
+    why: >-
+      the lumped model has no latent term at all; a two-phase coolant is not
+      approximated here, it is outside the model
+  - quantity: flow_regime
+    one_of: [laminar]
+    why: >-
+      Nu = 3.66 and f = 64/Re are the fully-developed laminar correlations;
+      evaluate_cold_plate refuses above Re 2300 rather than extrapolating
+  - quantity: source_geometry
+    one_of: [flat]
+    why: the base conduction term is t/(k·A_base), which assumes a flat interface
+  - quantity: material_family
+    one_of: [copper, aluminum, stainless_steel, nickel_superalloy, carbon_steel]
+    why: _K_SOLID in thermal.py carries solid conductivity for these families only
+  - quantity: flow_distribution
+    one_of: [parallel]
+    why: >-
+      the flow splits n ways through a manifold and rejoins. If the design
+      cannot tolerate uneven branch flow, this is the wrong shape however good
+      its numbers look — see the flow_maldistribution mode
+  - quantity: footprint
+    minimum: 60 mm
+    maximum: 120 mm
+    why: >-
+      plate_width's declared range; outside it the parameter bounds that make
+      this a working design no longer hold
+
+failure_modes:
+  - name: flow_maldistribution
+    description: >-
+      The model assumes every channel carries the same flow. It does not:
+      a Z-type manifold starves the far channels, and the more channels there
+      are the worse it gets. thermal.py names this as v1's remaining blind
+      spot, and the optimizer is known to exploit exactly this kind of gap —
+      v0 credited the lid and the full wetted perimeter, and the search found
+      it before a human did.
+    detected_by: atlas_cad.flow_network.evaluate_loop_network
+    mitigated_by: cold_plate.serpentine_channel
+  - name: degenerate_wall
+    description: >-
+      Wall thickness between channels is (W - n*w)/(n+1). Push n or
+      channel_width up and it reaches zero: a plate with no metal between the
+      channels, which still has a plausible R_th and does not exist.
+    detected_by: atlas_cad.thermal.evaluate_cold_plate
+  - name: fin_efficiency_collapse
+    description: >-
+      Deep narrow channels in a low-conductivity material stop behaving like
+      fins; η = tanh(m·d)/(m·d) falls away and the extra depth buys nothing
+      while costing pressure.
+    detected_by: atlas_cad.thermal.evaluate_cold_plate
+
+program:
+  - {op: datum_plane, id: top_datum}
+  - {op: sketch, id: base_outline, plane: top_datum, profile: rectangle,
+     width: "$plate_width", height: "$plate_width"}
+  - {op: pad, id: base, profile: base_outline, depth: "$base_thickness"}
+  - {op: pocket, id: channel, face: "@face:base/top",
+     width: "$channel_width", depth: "$channel_depth", length: "$plate_width"}
+  - {op: pocket_pattern, id: channels, source: channel, count: "$n_channels",
+     spacing: "($plate_width - $n_channels * $channel_width) / ($n_channels + 1)"}
+  # What the original genome called `edges: internal_channel_edges` — a name
+  # with no definition anywhere. This says it.
+  - {op: fillet, id: channel_break, edges: ["@edge:channels/floor_rim#*"],
+     radius: "$channel_width * 0.25"}
+  - {op: hole, id: inlet, face: "@face:base/side#1", thread: G1_4}
+  - {op: hole, id: outlet, face: "@face:base/side#3", thread: G1_4}
+  - {op: hole, id: mount_hole, face: "@face:base/top", diameter: 4.5}
+  - {op: hole_pattern, id: mount_holes, source: mount_hole, count: 4}

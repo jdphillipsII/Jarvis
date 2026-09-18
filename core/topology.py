@@ -15,6 +15,7 @@ A pointer names provenance, not position:
 
     @face:base_pad/top          the face the op called `base_pad` made as its top
     @face:inlet_hole/bore#2     the second bore instance, where there are many
+    @edge:channels/floor_rim#*  every instance — "fillet all the channel floors"
     @edge:base_pad/top_rim      an edge, same grammar
 
 Three properties follow, and they are the whole point:
@@ -73,7 +74,7 @@ _POINTER_RE = re.compile(
     r"^@(?P<kind>face|edge):"
     r"(?P<op>[A-Za-z_][A-Za-z0-9_]*)"
     r"/(?P<role>[a-z_][a-z0-9_]*)"
-    r"(?:#(?P<ordinal>\d+))?$")
+    r"(?:#(?P<ordinal>\d+|\*))?$")
 
 
 class PointerError(ValueError):
@@ -97,15 +98,22 @@ class Pointer:
     op_id: str
     role: str
     ordinal: Optional[int] = None   # 1-based, None = "there should be exactly one"
+    every: bool = False             # "#*" — all instances, however many
 
     def __str__(self) -> str:
-        tail = f"#{self.ordinal}" if self.ordinal is not None else ""
+        tail = "#*" if self.every else (
+            f"#{self.ordinal}" if self.ordinal is not None else "")
         return f"@{self.kind}:{self.op_id}/{self.role}{tail}"
 
     @property
+    def is_instanced(self) -> bool:
+        """Says which of many, one way or the other."""
+        return self.every or self.ordinal is not None
+
+    @property
     def is_ordinal(self) -> bool:
-        """Ordinal pointers are the weaker kind — see `caveat`."""
-        return self.ordinal is not None
+        """Selects by position — the weaker kind. `#*` is not one of these."""
+        return self.ordinal is not None and not self.every
 
     @property
     def caveat(self) -> str:
@@ -131,6 +139,9 @@ class Pointer:
                 f"{text!r} is not a topology pointer — "
                 f"expected @face:<op_id>/<role> or @edge:<op_id>/<role>[#n]")
         ordinal = match.group("ordinal")
+        if ordinal == "*":
+            return cls(kind=match.group("kind"), op_id=match.group("op"),
+                       role=match.group("role"), every=True)
         if ordinal is not None and int(ordinal) < 1:
             raise PointerError(f"{text!r}: ordinals are 1-based")
         return cls(kind=match.group("kind"), op_id=match.group("op"),
@@ -284,11 +295,11 @@ def _check_instanced(pointer: Pointer, raw: str, path: str, op_name: str,
             f"'{source_op}' (instanced by '{pointer.op_id}') makes no "
             f"{pointer.kind} called '{pointer.role}'",
             f"{source_op} {pointer.kind} roles: {', '.join(permitted) or 'none'}"))
-    if not pointer.is_ordinal:
+    if not pointer.is_instanced:
         problems.append(Problem(
             path, raw, "an instanced feature needs an ordinal",
             f"'{pointer.role}' is produced once per instance — "
-            f"write {pointer}#1 for the first"))
+            f"write {pointer}#1 for the first, or {pointer}#* for all"))
     return problems
 
 
@@ -316,6 +327,29 @@ class Provenance:
         return len(self._produced)
 
 
+def expand(pointer: Any, provenance: Provenance) -> List[Any]:
+    """Every handle a pointer names — one, or all of them for `#*`."""
+    pointer = Pointer.parse(pointer)
+    handles = provenance.handles(pointer)
+    if not handles:
+        raise DanglingPointer(
+            f"{pointer} resolves to nothing — '{pointer.op_id}' produced no "
+            f"{pointer.kind} under '{pointer.role}'")
+    if pointer.every:
+        return handles
+    if pointer.ordinal is not None:
+        if pointer.ordinal > len(handles):
+            raise DanglingPointer(
+                f"{pointer} asks for instance {pointer.ordinal} of "
+                f"{len(handles)}")
+        return [handles[pointer.ordinal - 1]]
+    if len(handles) > 1:
+        raise AmbiguousPointer(
+            f"{pointer} matches {len(handles)} {pointer.kind}s — "
+            f"say which, e.g. {pointer}#1, or {pointer}#* for all")
+    return handles
+
+
 def resolve(pointer: Any, provenance: Provenance) -> Any:
     """One pointer, one handle. Anything else raises.
 
@@ -324,23 +358,15 @@ def resolve(pointer: Any, provenance: Provenance) -> Any:
     the behaviour this whole module exists to refuse.
     """
     pointer = Pointer.parse(pointer)
-    handles = provenance.handles(pointer)
-    if not handles:
-        raise DanglingPointer(
-            f"{pointer} resolves to nothing — '{pointer.op_id}' produced no "
-            f"{pointer.kind} under '{pointer.role}'")
-    if pointer.ordinal is not None:
-        if pointer.ordinal > len(handles):
-            raise DanglingPointer(
-                f"{pointer} asks for instance {pointer.ordinal} of "
-                f"{len(handles)}")
-        return handles[pointer.ordinal - 1]
-    if len(handles) > 1:
-        raise AmbiguousPointer(
-            f"{pointer} matches {len(handles)} {pointer.kind}s — "
-            f"say which, e.g. {pointer}#1")
-    return handles[0]
+    if pointer.every:
+        raise PointerError(
+            f"{pointer} names every instance, not one — use expand()")
+    return expand(pointer, provenance)[0]
 
 
 def resolve_all(pointers: Iterable[Any], provenance: Provenance) -> List[Any]:
-    return [resolve(p, provenance) for p in pointers]
+    """Flattened: a `#*` pointer in the list contributes all of its handles."""
+    out: List[Any] = []
+    for pointer in pointers:
+        out.extend(expand(pointer, provenance))
+    return out

@@ -1,0 +1,109 @@
+# This archetype exists because of the other one's failure mode. That is the
+# whole argument for keeping a library rather than generating each time: the
+# second design is not a better guess at the same problem, it is the answer to
+# a constraint the first design taught us about.
+id: cold_plate.serpentine_channel
+summary: >-
+  A flat plate with one continuous channel folded back and forth across the
+  face, closed by a lid. One path in, one path out.
+intent: chip_cold_plate
+
+provenance: >-
+  Not a migrated genome. Written as the structural answer to
+  cold_plate.straight_channel's flow_maldistribution mode: with a single path
+  there are no parallel branches, so there is nothing for a manifold to
+  distribute unevenly. Standard practice in power electronics cold plates;
+  see any liquid-cooling handbook.
+status: proposed
+evidence: ""
+
+material: CU_C110
+process: CNC_3AXIS_MILLING
+ports: [inlet, outlet, chip_face, mount_pattern_m4]
+# Deliberately empty. atlas_cad.thermal assumes n parallel channels sharing the
+# flow; pointed at this shape it would compute a confident wrong answer rather
+# than refuse, because n=1 is inside its parameter domain and outside its
+# physical one. An archetype with no evaluator is worth recording — it is not
+# worth pretending about.
+analyses: []
+
+parameters:
+  - {name: plate_width,    unit: mm, default: 100.0, bounds: [40.0, 200.0]}
+  - {name: plate_length,   unit: mm, default: 100.0, bounds: [40.0, 200.0]}
+  - {name: base_thickness, unit: mm, default: 6.0, bounds: [3.0, 12.0]}
+  - {name: channel_width,  unit: mm, default: 3.0, bounds: [1.5, 8.0],
+     description: wider than the parallel case, because one path carries all of it}
+  - {name: channel_depth,  unit: mm, default: 4.0, bounds: [2.0, 10.0]}
+  - name: n_passes
+    unit: "1"
+    default: 8
+    bounds: [3, 20]
+    integer: true
+    description: >-
+      folds across the face; more passes means more wetted length, more
+      pressure drop, and a larger inlet-to-outlet coolant temperature rise
+  - {name: bend_radius,    unit: mm, default: 4.0, bounds: [1.5, 12.0],
+     description: at the folds; too tight and the bend loss dominates}
+
+applicability:
+  - quantity: coolant_phase
+    one_of: [single_phase_liquid]
+    why: same lumped-model assumption as the parallel case — no latent term
+  - quantity: flow_regime
+    one_of: [laminar]
+    why: >-
+      the folded path is long and narrow; the laminar friction factor is what
+      makes its pressure drop predictable at all
+  - quantity: source_geometry
+    one_of: [flat]
+    why: conduction through a flat base to the channel floor
+  - quantity: flow_distribution
+    one_of: [single_path]
+    why: >-
+      choosing this archetype IS choosing to spend pressure to remove the
+      branch-distribution problem; if parallel flow is acceptable, the
+      straight-channel plate does the same job for far less head
+  - quantity: footprint
+    minimum: 40 mm
+    maximum: 200 mm
+    why: plate_width and plate_length's declared range
+
+failure_modes:
+  - name: pressure_drop
+    description: >-
+      One path of n·W wetted length has roughly n² times the resistance of n
+      parallel channels of length W at the same total flow. This is the price
+      of the archetype, not a defect of it — but a pump that cannot make the
+      head turns a working design into a non-working one.
+    detected_by: atlas_cad.thermal (delta_p), once an evaluator exists for n=1
+  - name: axial_temperature_rise
+    description: >-
+      All the heat goes into one stream, so the outlet end of the plate runs
+      hotter than the inlet end by the full caloric rise rather than a
+      per-channel fraction. A die sitting over the last pass sees the worst of
+      it, and the lumped R_th does not report where on the face it happened.
+    detected_by: atlas_cad.tier2_fd
+  - name: bend_loss_unmodelled
+    description: >-
+      Nothing in the analysis tier accounts for the 2·n_passes bends. At tight
+      bend_radius they are a substantial share of the total head, and every
+      pressure number for this archetype is optimistic until that is fixed.
+
+program:
+  - {op: datum_plane, id: top_datum}
+  - {op: sketch, id: base_outline, plane: top_datum, profile: rectangle,
+     width: "$plate_width", height: "$plate_length"}
+  - {op: pad, id: base, profile: base_outline, depth: "$base_thickness"}
+  - {op: sketch, id: path, plane: top_datum, profile: serpentine,
+     passes: "$n_passes", width: "$plate_width", height: "$plate_length",
+     bend_radius: "$bend_radius"}
+  # One pocket, not a pattern — so nothing here needs an ordinal, which is the
+  # geometry telling you the same thing the failure modes do.
+  - {op: pocket, id: channel, face: "@face:base/top", along: path,
+     width: "$channel_width", depth: "$channel_depth"}
+  - {op: fillet, id: floor_break, edges: ["@edge:channel/floor_rim"],
+     radius: "$channel_width * 0.25"}
+  - {op: hole, id: inlet, face: "@face:base/side#1", thread: G1_4}
+  - {op: hole, id: outlet, face: "@face:base/side#1", thread: G1_4}
+  - {op: hole, id: mount_hole, face: "@face:base/top", diameter: 4.5}
+  - {op: hole_pattern, id: mount_holes, source: mount_hole, count: 4}

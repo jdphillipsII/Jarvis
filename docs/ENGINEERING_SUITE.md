@@ -99,6 +99,7 @@ session, and Autocad-MCP ships `system_run_command` and `system_run_lisp`.
 | Tool | Interface | Agency | Notes |
 |---|---|---|---|
 | `atlas_cad.topology.propose_with` | in-process | actuator | LLM proposes moves, the grammar disposes. Invalid states are made *inexpressible* by round-tripping through the validating loader — a stronger guarantee than schema validation. |
+| `design.select` / `design.instantiate` | in-process ✅ | advisory | The archetype library — retrieve a proven shape and adapt it, or be told that nothing in the library covers the problem. See [ARCHETYPES.md](ARCHETYPES.md). |
 
 ---
 
@@ -274,11 +275,11 @@ Things the enumeration above shows are missing rather than merely unbuilt:
 - **Tolerance stack-up** is listed as deferred in Atlas's own design doc. Every
   process in the catalogue carries an ISO 2768 class, so the inputs exist; the
   Monte Carlo over them does not.
-- **The archetype library does not exist.** Every spec→CAD project surveyed
-  generates geometry from the spec each time; nobody retrieves and adapts,
-  which is how the work is actually done. `evaluate_cold_plate`'s required
-  parameters already constitute one archetype implicitly — naming it and adding
-  a second is the smallest useful step.
+- ~~**The archetype library does not exist.**~~ — **done.**
+  [ARCHETYPES.md](ARCHETYPES.md), `core/archetypes.py`, three entries. Retrieve
+  and adapt rather than generate, and *nothing applies* is an answer the
+  library is willing to give. Nothing in it is `measured` yet, which is the
+  loop-closure gap below showing up where it belongs.
 - **The `PartGenome` compiler implements 5 of its 17 declared ops.** `hole`,
   `fillet`, `chamfer`, `shell`, `rib`, `thread` and the pattern ops are accepted
   by the schema and then honestly recorded as dark regions. The checker is the

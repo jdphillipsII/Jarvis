@@ -134,6 +134,10 @@ for the tolerance stack-up gap named in the suite doc.
 - **The archetype library.** `cad-cae-copilot` generates build123d from the
   spec every time. Nobody retrieves and adapts. That is how the work is
   actually done, and it is the reason spec → CAD keeps failing.
+  **Built** — see [ARCHETYPES.md](ARCHETYPES.md). The part none of the
+  surveyed projects has is not the retrieval, it is the refusal: a library
+  that will say no archetype covers this problem rather than handing back its
+  nearest entry.
 - **The teaching-visualisation harness.** Unclaimed.
 
 ---

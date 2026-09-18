@@ -1,0 +1,83 @@
+# The second artifact class, and the reason the schema is worth trusting: it is
+# not cold-plate-shaped. Certifying a bracket required no changes outside its
+# own evaluator and one rule.
+id: bracket.l_cantilever
+summary: >-
+  A flat rectangular arm bolted at one end and loaded at the other.
+intent: mount_tripod
+
+provenance: >-
+  atlas_cad/examples/bracket.part.yaml. Physics: atlas_cad/structural.py
+  evaluate_cantilever — σ_max = 6FL/(w·t²) at the root, δ_tip = FL³/(3EI),
+  SF = σ_yield/σ_max. Shigley's Mechanical Engineering Design 11e ch. 3–5.
+status: simulated
+evidence: >-
+  Certified through the checker battery as the C1 second artifact class, which
+  is the claim that the spine is schema-driven rather than pilot-specific.
+  No bench measurement.
+
+material: AL_6061_T6
+process: CNC_3AXIS_MILLING
+ports: [mount, load_point]
+analyses:
+  - atlas_cad.structural.evaluate_cantilever
+  - atlas_cad.verify_part
+
+parameters:
+  - {name: arm_length,    unit: mm, default: 60.0, bounds: [40.0, 120.0],
+     description: root to load point; σ is linear in this and δ is cubic}
+  - {name: arm_width,     unit: mm, default: 20.0, bounds: [10.0, 40.0]}
+  - {name: arm_thickness, unit: mm, default: 6.0, bounds: [2.0, 10.0],
+     description: σ goes as 1/t², so this is the cheap axis}
+  - {name: hole_pitch,    unit: mm, default: 25.0, bounds: [12.0, 60.0],
+     description: between the two M5 root holes}
+  - {name: root_radius,   unit: mm, default: 3.0, bounds: [0.5, 10.0],
+     description: fillet at the root — unmodelled, see failure modes}
+
+applicability:
+  - quantity: load_type
+    one_of: [end_point]
+    why: >-
+      σ_max = 6FL/(w·t²) is the end-point-load solution; a distributed or
+      mid-span load is a different formula, not a correction to this one
+  - quantity: regime
+    one_of: [elastic]
+    why: >-
+      the model has no plasticity; past yield it reports a safety factor below
+      one and stops meaning anything more specific
+  - quantity: span
+    minimum: 40 mm
+    maximum: 120 mm
+    why: arm_length's declared range
+  - quantity: fixity
+    one_of: [root_fixed]
+    why: >-
+      the root is assumed rigidly fixed; a bracket bolted to a compliant panel
+      deflects more than δ_tip says and the difference is not small
+
+failure_modes:
+  - name: stress_concentration_at_holes
+    description: >-
+      σ is computed from bending alone. The mounting holes sit at the root,
+      exactly where the stress is highest, and their K_t is not in the model.
+      structural.py names this as a stated gap for the counterexample loop.
+      Nothing in the analysis tier currently detects it, which is why it is
+      written here rather than left to be rediscovered.
+    detected_by: ""
+  - name: thin_arm_buckling
+    description: >-
+      A long thin arm under an off-axis component of the load can buckle
+      laterally well below the bending safety factor. Out of the model's
+      domain, and the parameter bounds do not prevent reaching it.
+    detected_by: ""
+
+program:
+  - {op: datum_plane, id: top_datum}
+  - {op: sketch, id: arm_outline, plane: top_datum, profile: rectangle,
+     width: "$arm_width", height: "$arm_length"}
+  - {op: pad, id: arm, profile: arm_outline, depth: "$arm_thickness"}
+  - {op: fillet, id: root_break, edges: ["@edge:arm/side_vertical#*"],
+     radius: "$root_radius"}
+  - {op: hole, id: mount_hole, face: "@face:arm/top", diameter: 5.5}
+  - {op: hole_pattern, id: mount_holes, source: mount_hole, count: 2,
+     spacing: "$hole_pitch"}

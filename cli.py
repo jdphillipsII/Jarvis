@@ -5,6 +5,7 @@
     jarvis doctor          check every prerequisite and say what's missing
     jarvis tools           list what JARVIS can do at the current agency
     jarvis bridges         borrowed MCP servers: what is classified, what is not
+    jarvis archetypes [id]  the design library: what is proven, and how it fails
     jarvis chat            text-mode conversation with the full tool loop
     jarvis bench [models]  score models on tool choice, args, persona, speed
     jarvis mcp             serve the toolbox over MCP on stdio
@@ -141,6 +142,58 @@ def cmd_bridges(_) -> int:
             if items:
                 print(f"  {colour}{label}{OFF}: {', '.join(items)}")
     print(f"\n{DIM}a tool with no manifest entry is not mounted{OFF}")
+    return 0
+
+
+def cmd_archetypes(a) -> int:
+    """Show the archetype library, or one archetype in full."""
+    from core.archetypes import Library
+    library = Library.load()
+    if not len(library):
+        print("no archetypes (archetypes/*.yaml)")
+        return 0
+
+    wanted = a.extra[0] if a.extra else ""
+    if not wanted:
+        for arch in sorted(library, key=lambda x: x.id):
+            rungs = {"proposed": DIM, "simulated": DIM, "built": GREEN,
+                     "measured": GREEN}
+            print(f"\n{arch.id}  {rungs.get(arch.status, DIM)}{arch.status}{OFF}")
+            print(f"  {arch.summary.strip()}")
+            print(f"  {DIM}{len(arch.parameters)} parameters · "
+                  f"{len(arch.applicability)} conditions · "
+                  f"{len(arch.failure_modes)} known failure modes{OFF}")
+        print(f"\n{DIM}jarvis archetypes <id> for one in full{OFF}")
+        return 0
+
+    arch = library.get(wanted)
+    if arch is None:
+        print(f"{RED}no archetype '{wanted}'{OFF}")
+        print(f"{DIM}have: {', '.join(sorted(x.id for x in library))}{OFF}")
+        return 1
+
+    print(f"{arch.id}  {DIM}{arch.status}{OFF}\n  {arch.summary.strip()}")
+    if arch.evidence.strip():
+        print(f"\n{DIM}evidence{OFF}\n  {arch.evidence.strip()}")
+    print(f"\n{DIM}parameters{OFF}")
+    for spec in arch.parameters:
+        shown = (lambda v: f"{int(v)}" if spec.integer else f"{v:g}")
+        rng = (f"{shown(spec.bounds[0])}–{shown(spec.bounds[1])}"
+               if spec.bounds else "fixed")
+        print(f"  {spec.name:<16} {shown(spec.default):>8} {spec.unit:<4} "
+              f"{DIM}{rng}{OFF}")
+    print(f"\n{DIM}applies when{OFF}")
+    for condition in arch.applicability:
+        print(f"  {condition.describe()}")
+        print(f"    {DIM}{' '.join(condition.why.split())}{OFF}")
+    print(f"\n{DIM}known failure modes{OFF}")
+    for mode in arch.failure_modes:
+        print(f"  {RED}{mode.name}{OFF}")
+        print(f"    {' '.join(mode.description.split())}")
+        detector = mode.detected_by or f"{RED}nothing detects this{OFF}"
+        print(f"    {DIM}detected by:{OFF} {detector}")
+        if mode.mitigated_by:
+            print(f"    {DIM}mitigated by:{OFF} {mode.mitigated_by}")
     return 0
 
 
@@ -415,6 +468,7 @@ def main() -> int:
     for name, fn, takes_extra in (
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
             ("tools", cmd_tools, False), ("bridges", cmd_bridges, False),
+            ("archetypes", cmd_archetypes, True),
             ("chat", cmd_chat, False),
             ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
             ("listen", cmd_listen, True),

@@ -121,6 +121,91 @@ def build(bus: Optional[Bus] = None, briefing=None,
     def read_briefing() -> str:
         return briefing.summary() if briefing else "Nothing held, sir."
 
+    # ---- the archetype library: retrieve and adapt, or say nothing fits ----
+    from core import archetypes as _arch
+    library = _arch.Library.load()
+    if len(library):
+        def list_archetypes() -> List[Dict[str, Any]]:
+            return [{"id": a.id, "summary": a.summary.strip(), "status": a.status,
+                     "parameters": [p.name for p in a.parameters],
+                     "analyses": list(a.analyses)} for a in library]
+
+        reg.add(Tool(
+            "design.archetypes",
+            "List the proven designs in the archetype library. Start here for "
+            "any 'design me a ...' request: adapting a design that has been "
+            "evaluated beats generating one that has not.",
+            list_archetypes))
+
+        def describe(archetype_id: str) -> Dict[str, Any]:
+            a = library.get(archetype_id)
+            if a is None:
+                raise KeyError(f"no archetype '{archetype_id}'")
+            return {
+                "id": a.id, "summary": a.summary.strip(), "intent": a.intent,
+                "status": a.status, "evidence": a.evidence.strip(),
+                "provenance": a.provenance.strip(),
+                "parameters": [{"name": p.name, "unit": p.unit,
+                                "default": p.default, "bounds": p.bounds,
+                                "description": p.description} for p in a.parameters],
+                "applies_when": [{"condition": c.describe(), "why": c.why.strip()}
+                                 for c in a.applicability],
+                "failure_modes": [{"name": f.name,
+                                   "description": f.description.strip(),
+                                   "detected_by": f.detected_by,
+                                   "mitigated_by": f.mitigated_by}
+                                  for f in a.failure_modes],
+                "analyses": list(a.analyses)}
+
+        reg.add(Tool(
+            "design.archetype",
+            "Everything known about one archetype: its parameters, the "
+            "conditions under which it applies, how it is known to fail, and "
+            "what backs it. Read the failure modes before proposing it.",
+            describe,
+            parameters={"archetype_id": {"type": "string"}},
+            required=("archetype_id",)))
+
+        def choose(problem: Dict[str, Any]) -> Dict[str, Any]:
+            chosen = _arch.select(library, problem)
+            return {"applies": [a.archetype.id for a in chosen.applicable],
+                    "report": chosen.report(),
+                    "nothing_applies": chosen.nothing_applies}
+
+        reg.add(Tool(
+            "design.select",
+            "Given a problem — coolant_phase, flow_regime, source_geometry, "
+            "material_family, footprint, flow_distribution, load_type, span, "
+            "and so on — say which archetypes apply. If none does, it says so "
+            "and names what it excluded and why. Do not adapt an excluded "
+            "archetype; nothing applying is a real answer.",
+            choose,
+            parameters={"problem": {
+                "type": "object",
+                "description": "stated quantities, e.g. "
+                               "{\"footprint\": \"90 mm\", \"flow_regime\": \"laminar\"}"}},
+            required=("problem",)))
+
+        def build_part(archetype_id: str, values: Optional[Dict[str, Any]] = None,
+                       name: str = "") -> Dict[str, Any]:
+            a = library.get(archetype_id)
+            if a is None:
+                raise KeyError(f"no archetype '{archetype_id}'")
+            return _arch.instantiate(a, values or {}, name=name)
+
+        reg.add(Tool(
+            "design.instantiate",
+            "Adapt an archetype into a part document: the archetype's program "
+            "plus the numbers this job needs. Values may carry units ('4 mm'); "
+            "anything not supplied keeps the archetype's working default.",
+            build_part,
+            parameters={"archetype_id": {"type": "string"},
+                        "values": {"type": "object",
+                                   "description": "parameter overrides"},
+                        "name": {"type": "string",
+                                 "description": "name for the resulting part"}},
+            required=("archetype_id",)))
+
     reg.add(Tool("briefing.read",
                  "Report anything held while the user was away or busy.",
                  read_briefing))
