@@ -148,13 +148,31 @@ at least one way it fails, and every archetype says where it came from.
 
 ---
 
+## Running one
+
+```
+jarvis design coolant_phase=single_phase_liquid flow_regime=laminar \
+  source_geometry=flat material_family=copper footprint="90 mm" \
+  flow_distribution=parallel set:n_channels=32 at:flow="2 L/min"
+```
+
+Select, adapt, load through Atlas's loader, run the checker battery and the
+physics the archetype declares, compare the analyses against each other, and
+finish by naming what none of them covered. `design.evaluate` is the same chain
+as a tool.
+
+The physics runs out of process (`scripts/atlas_worker.py`) because **both
+projects own a package called `core`** and there is no import order that
+satisfies both. The suite doc called that tier in-process; it cannot be.
+
+The first run is written up at
+[findings/2026-09-18-first-end-to-end-run.md](findings/2026-09-18-first-end-to-end-run.md).
+It worked, and it found four real problems — including that the thermal model's
+"worst case" assumes a starved channel gets 70% of mean flow while the flow
+network computes 65% for the pilot manifold, so the conservative number is
+optimistic.
+
 ## Where it goes next
 
-The library is the retrieval half. The adaptation half — `instantiate` — hands
-back a PartGenome document ready for the checker battery, which means the
-natural next step is to run one end to end: select, adapt, verify, and evaluate
-through `atlas_cad.thermal`, so the numbers come back into the same
-conversation that chose the shape.
-
-The rung above that is the rig, and the rung above *that* is the first
-archetype promoted to `measured`.
+The rung above is the rig, and the rung above *that* is the first archetype
+promoted to `measured`.

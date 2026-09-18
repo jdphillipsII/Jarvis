@@ -457,6 +457,11 @@ def instantiate(archetype: Archetype, values: Optional[Mapping[str, Any]] = None
     Returns a PartGenome document — the same shape `atlas_cad.part.load_part`
     reads — so the result goes straight into the checker battery rather than
     into a conversation about whether it looks right.
+
+    Nothing extra is added to the document, not even which archetype it came
+    from: `load_part` rejects unknown top-level fields, and it is right to.
+    Provenance travels beside the document (`to_yaml` writes it as a header
+    comment, the way the hand-written genomes carry theirs).
     """
     supplied = dict(values or {})
     unknown = sorted(set(supplied) - {p.name for p in archetype.parameters})
@@ -482,7 +487,6 @@ def instantiate(archetype: Archetype, values: Optional[Mapping[str, Any]] = None
 
     return {"part": name or archetype.id.replace(".", "_"),
             "role": archetype.intent,
-            "from_archetype": archetype.id,
             "parameters": parameters,
             "program": [dict(step) for step in archetype.program],
             "manufacturing": {"material": material or archetype.material,
@@ -507,3 +511,20 @@ def _numeric(spec: ParamSpec, value: Any) -> float:
         return quantity.to(spec.unit).value
     except UnitError as exc:
         raise ArchetypeError(f"{spec.name}: {exc}") from None
+
+
+def to_yaml(archetype: Archetype, document: Mapping[str, Any]) -> str:
+    """The document as a genome file, with its provenance in the header.
+
+    A part that came out of the library should say so on disk. The header is a
+    comment because the field would not survive `load_part`, and a comment is
+    where the hand-written genomes keep the same information.
+    """
+    known = [f"# generated from archetype {archetype.id} ({archetype.status})"]
+    if archetype.provenance.strip():
+        known.append("# " + " ".join(archetype.provenance.split()))
+    for mode in archetype.failure_modes:
+        detector = mode.detected_by or "NOTHING DETECTS THIS"
+        known.append(f"# known failure mode: {mode.name} — {detector}")
+    body = yaml.safe_dump(dict(document), sort_keys=False, default_flow_style=False)
+    return "\n".join(known) + "\n" + body

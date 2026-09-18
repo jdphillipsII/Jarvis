@@ -99,11 +99,10 @@ program:
      bend_radius: "$bend_radius"}
   # One pocket, not a pattern — so nothing here needs an ordinal, which is the
   # geometry telling you the same thing the failure modes do.
-  - {op: pocket, id: channel, face: "@face:base/top", along: path,
+  - {op: pocket, id: channel, along: path,
      width: "$channel_width", depth: "$channel_depth"}
   - {op: fillet, id: floor_break, edges: ["@edge:channel/floor_rim"],
      radius: "$channel_width * 0.25"}
-  - {op: hole, id: inlet, face: "@face:base/side#1", thread: G1_4}
-  - {op: hole, id: outlet, face: "@face:base/side#1", thread: G1_4}
-  - {op: hole, id: mount_hole, face: "@face:base/top", diameter: 4.5}
-  - {op: hole_pattern, id: mount_holes, source: mount_hole, count: 4}
+  - {op: hole, id: inlet, at: inlet_datum, thread: G1_4}
+  - {op: hole, id: outlet, at: outlet_datum, thread: G1_4}
+  - {op: hole_pattern, id: mount_holes, count: 4, diameter: 4.5, at: mount_datums}

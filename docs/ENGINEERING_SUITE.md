@@ -199,7 +199,7 @@ and machine-start confirms **every time** with no remembered approvals.
 | Logging → CSV / Parquet | in-process | actuator | |
 | `scipy.stats` | in-process | advisory | fits, intervals, hypothesis tests |
 | Atlas `surrogate.conformal` | in-process | advisory | calibrated uncertainty |
-| **Predicted vs measured** | in-process | advisory | **the loop closure** — feeds the delta back into MODEL |
+| **Predicted vs measured** | in-process | advisory | **the loop closure** — feeds the delta back into MODEL. Now also the promotion rule for an archetype's top rung: `measured` must cite one. |
 
 Reading a sensor is safe. Energising a heater is not. The split is by *effect*,
 never by device.
@@ -245,8 +245,12 @@ Sequenced by value per hour, not by ambition.
    `W/degC` is refused with an explanation rather than a "unknown symbol"
    error). Tools declare `{"type": "quantity", "dimension": "pressure"}` and a
    bare `80` is refused instead of silently becoming 80 Pa.
-2. **Atlas physics tools** (thermal, structural, verify, cross-check) — real
-   answers at voice speed, from code that already exists and is tested
+2. ~~**Atlas physics tools** (thermal, structural, verify, cross-check)~~ —
+   **done.** `core/atlas.py` + `scripts/atlas_worker.py`, reached by
+   `jarvis design` and the `design.evaluate` tool. Out of process, not
+   in-process as this doc assumed: both projects own a package called `core`
+   and no import order satisfies both. First run:
+   [findings/2026-09-18-first-end-to-end-run.md](findings/2026-09-18-first-end-to-end-run.md).
 3. **git lab notebook** — cheap, and it means the agent's work leaves a trace
 4. **Onshape MCP** — the first real "describe it, see geometry" surface
 5. ~~**Stable topology pointers**~~ — **done.** `core/topology.py`.

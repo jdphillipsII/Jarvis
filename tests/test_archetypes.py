@@ -202,7 +202,6 @@ def test_instantiating_with_no_overrides_gives_the_working_design():
     assert values["n_channels"] == 24 and values["plate_width"] == 100.0
     assert document["manufacturing"] == {"material": "CU_C110",
                                          "process": "CNC_5AXIS_MILLING"}
-    assert document["from_archetype"] == "cold_plate.straight_channel"
 
 
 def test_adapting_changes_only_what_was_asked_for():
@@ -273,3 +272,27 @@ def test_every_archetype_names_at_least_one_way_it_fails():
 def test_every_archetype_says_where_it_came_from():
     for archetype in Library.load():
         assert archetype.provenance.strip(), archetype.id
+
+
+def test_the_document_carries_no_field_the_atlas_loader_would_reject():
+    """Found by running the chain end to end: load_part refuses unknown
+    top-level fields, and it is right to. Provenance travels beside the
+    document, not inside it."""
+    a = cooling_library().get("cold_plate.straight_channel")
+    assert set(instantiate(a)) == {"part", "role", "parameters", "program",
+                                   "manufacturing", "ports"}
+
+
+def test_the_genome_file_keeps_its_provenance_in_the_header():
+    from core.archetypes import to_yaml
+    a = cooling_library().get("cold_plate.straight_channel")
+    text = to_yaml(a, instantiate(a))
+    assert text.startswith("# generated from archetype cold_plate.straight_channel")
+    assert "known failure mode: flow_maldistribution" in text
+    assert yaml.safe_load(text)["part"] == "cold_plate_straight_channel"
+
+
+def test_an_undetected_failure_mode_is_shouted_in_the_header():
+    from core.archetypes import to_yaml
+    a = cooling_library().get("bracket.l_cantilever")
+    assert "NOTHING DETECTS THIS" in to_yaml(a, instantiate(a))

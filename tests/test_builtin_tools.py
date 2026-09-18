@@ -132,9 +132,11 @@ class TestDesignTools:
             "archetype_id": "cold_plate.straight_channel",
             "values": {"n_channels": 32}, "name": "dlc_plate"})
         assert result.ok
-        values = {p["name"]: p["value"] for p in result.value["parameters"]}
+        document = result.value["document"]
+        values = {p["name"]: p["value"] for p in document["parameters"]}
         assert values["n_channels"] == 32 and values["plate_width"] == 100.0
-        assert result.value["part"] == "dlc_plate"
+        assert document["part"] == "dlc_plate"
+        assert result.value["from_archetype"] == "cold_plate.straight_channel"
 
     def test_an_out_of_range_adaptation_comes_back_as_a_tool_error(self):
         result = self.box().invoke("design.instantiate", {

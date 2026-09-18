@@ -78,6 +78,6 @@ program:
   - {op: pad, id: arm, profile: arm_outline, depth: "$arm_thickness"}
   - {op: fillet, id: root_break, edges: ["@edge:arm/side_vertical#*"],
      radius: "$root_radius"}
-  - {op: hole, id: mount_hole, face: "@face:arm/top", diameter: 5.5}
-  - {op: hole_pattern, id: mount_holes, source: mount_hole, count: 2,
-     spacing: "$hole_pitch"}
+  # M5 clearance at the root
+  - {op: hole_pattern, id: mount_holes, count: 2, diameter: 5.5,
+     at: root_datums, spacing: "$hole_pitch"}

@@ -6,6 +6,8 @@
     jarvis tools           list what JARVIS can do at the current agency
     jarvis bridges         borrowed MCP servers: what is classified, what is not
     jarvis archetypes [id]  the design library: what is proven, and how it fails
+    jarvis design k=v ...   select an archetype, adapt it, verify it, run the
+                            physics — and end by naming what none of it covered
     jarvis chat            text-mode conversation with the full tool loop
     jarvis bench [models]  score models on tool choice, args, persona, speed
     jarvis mcp             serve the toolbox over MCP on stdio
@@ -194,6 +196,138 @@ def cmd_archetypes(a) -> int:
         print(f"    {DIM}detected by:{OFF} {detector}")
         if mode.mitigated_by:
             print(f"    {DIM}mitigated by:{OFF} {mode.mitigated_by}")
+    return 0
+
+
+# Operating conditions are stated the way a person says them; the analyses
+# want SI. The units layer is what makes "2 L/min" and "15 N" acceptable here.
+_CONDITIONS = {"flow": ("flow_m3_s", "m^3/s"), "load": ("load_n", "N")}
+
+
+def cmd_design(a) -> int:
+    """Run a problem through the whole chain: select, adapt, verify, analyse.
+
+    jarvis design coolant_phase=single_phase_liquid flow_regime=laminar \
+        source_geometry=flat material_family=copper footprint="90 mm" \
+        flow_distribution=parallel set:n_channels=32 at:flow="2 L/min"
+
+      k=v       the problem statement, matched against archetype conditions
+      set:k=v   a parameter override — the "adapt" in retrieve and adapt
+      at:k=v    an operating condition the analyses need (flow, load)
+      --manifold PATH   a manifold genome, so the flow network can be solved
+    """
+    from core import atlas
+    from core.archetypes import Library, instantiate, select
+    from core.units import UnitError, convert
+
+    problem, overrides, conditions = {}, {}, {}
+    for token in a.extra:
+        if "=" not in token:
+            print(f"{RED}not a key=value: {token}{OFF}")
+            return 2
+        key, value = token.split("=", 1)
+        if key.startswith("set:"):
+            overrides[key[4:]] = value
+        elif key.startswith("at:"):
+            name, unit = _CONDITIONS.get(key[3:], (key[3:], ""))
+            try:
+                conditions[name] = convert(value, unit).value if unit else value
+            except UnitError as exc:
+                print(f"{RED}{key}: {exc}{OFF}")
+                return 2
+        else:
+            problem[key] = value
+
+    if a.manifold:
+        import yaml
+        with open(os.path.expanduser(a.manifold)) as fh:
+            conditions["manifold_document"] = yaml.safe_load(fh)
+
+    library = Library.load()
+    if not len(library):
+        print("no archetypes (archetypes/*.yaml)")
+        return 1
+
+    # ---- 1. select -------------------------------------------------------
+    print(f"{DIM}── select ──{OFF}")
+    chosen = select(library, problem)
+    print(chosen.report())
+    if chosen.nothing_applies:
+        # The chain stops here on purpose. Adapting an excluded archetype is
+        # exactly the failure the library exists to prevent.
+        return 1
+    archetype = chosen.best
+
+    # ---- 2. adapt --------------------------------------------------------
+    print(f"\n{DIM}── adapt ──{OFF}  {archetype.id}")
+    try:
+        document = instantiate(archetype, overrides, name=a.name or "")
+    except Exception as exc:
+        print(f"{RED}{exc}{OFF}")
+        return 1
+    for spec in archetype.parameters:
+        value, = [p["value"] for p in document["parameters"] if p["name"] == spec.name]
+        changed = spec.name in overrides
+        mark = f"{GREEN}→{OFF}" if changed else " "
+        note = f"  {DIM}(default {spec.default:g}){OFF}" if changed else ""
+        print(f"  {mark} {spec.name:<16} {value:>8} {spec.unit}{note}")
+
+    # ---- 3 & 4. load, verify, analyse -------------------------------------
+    print(f"\n{DIM}── atlas ──{OFF}  {DIM}{atlas.root()}{OFF}")
+    try:
+        answer = atlas.evaluate(document, archetype.analyses, conditions,
+                                spec=archetype.id)
+    except atlas.AtlasUnavailable as exc:
+        print(f"{RED}{exc}{OFF}")
+        return 1
+    for finding in answer["findings"]:
+        print(f"  {RED}{finding}{OFF}")
+    if not answer["ok"]:
+        print(f"  {RED}the document did not load{OFF}")
+        return 1
+    print(f"  {GREEN}loaded{OFF}")
+
+    for name, result in answer["results"].items():
+        print(f"\n  {name}")
+        if name.endswith("verify_part"):
+            print(f"    {GREEN}{result['passed']} rule(s) passed{OFF}"
+                  + (f", {RED}{len(result['failed'])} failed{OFF}"
+                     if result["failed"] else ""))
+            for check in result["failed"]:
+                print(f"    {RED}{check['rule']}{OFF} {check.get('detail') or ''}")
+            # The interesting half of a certificate.
+            for dark in result["dark_regions"]:
+                print(f"    {DIM}not checked: {dark['aspect']} "
+                      f"({dark['reason']}){OFF}")
+            continue
+        for key, value in result.items():
+            if value is None:
+                continue
+            shown = f"{value:.4g}" if isinstance(value, float) else value
+            print(f"    {key:<22} {shown}")
+
+    for name, reason in answer["skipped"].items():
+        print(f"\n  {DIM}skipped {name} — {reason}{OFF}")
+
+    # Each analysis is honest on its own and neither knows the other ran. The
+    # interesting failures live between them.
+    if (notes := atlas.consistency(answer["results"])):
+        print(f"\n{DIM}── between the analyses ──{OFF}")
+        for note in notes:
+            print(f"  {note}")
+
+    # ---- 5. what none of the above covered -------------------------------
+    # The chain ends here rather than on a number, because a number that does
+    # not say what it left out is the thing we are trying not to build.
+    print(f"\n{DIM}── known failure modes of {archetype.id} ──{OFF}")
+    for mode in archetype.failure_modes:
+        detector = mode.detected_by or f"{RED}nothing detects this{OFF}"
+        print(f"  {mode.name:<28} {DIM}detected by:{OFF} {detector}")
+        if mode.mitigated_by:
+            print(f"  {'':<28} {DIM}mitigated by:{OFF} {mode.mitigated_by}")
+    if archetype.status != "measured":
+        print(f"\n{DIM}{archetype.id} is '{archetype.status}' — every number "
+              f"above is predicted, none of it measured.{OFF}")
     return 0
 
 
@@ -469,6 +603,7 @@ def main() -> int:
             ("doctor", cmd_doctor, False), ("status", cmd_status, False),
             ("tools", cmd_tools, False), ("bridges", cmd_bridges, False),
             ("archetypes", cmd_archetypes, True),
+            ("design", cmd_design, True),
             ("chat", cmd_chat, False),
             ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
             ("listen", cmd_listen, True),
@@ -481,6 +616,12 @@ def main() -> int:
     # forwarded verbatim. A positional with nargs="*" or REMAINDER cannot do
     # this — argparse refuses to let either absorb tokens starting with "-",
     # so `jarvis gestures --preview` failed instead of passing the flag along.
+    for name in ("design",):
+        sub.choices[name].add_argument("--name", default="",
+                                       help="name for the resulting part")
+        sub.choices[name].add_argument(
+            "--manifold", default="",
+            help="a manifold part.yaml, for the flow-network analysis")
     args, unknown = ap.parse_known_args()
     if unknown and not getattr(args, "passthrough", False):
         ap.error("unrecognized arguments: " + " ".join(unknown))

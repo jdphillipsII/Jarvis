@@ -107,15 +107,17 @@ program:
   - {op: sketch, id: base_outline, plane: top_datum, profile: rectangle,
      width: "$plate_width", height: "$plate_width"}
   - {op: pad, id: base, profile: base_outline, depth: "$base_thickness"}
-  - {op: pocket, id: channel, face: "@face:base/top",
-     width: "$channel_width", depth: "$channel_depth", length: "$plate_width"}
-  - {op: pocket_pattern, id: channels, source: channel, count: "$n_channels",
-     spacing: "($plate_width - $n_channels * $channel_width) / ($n_channels + 1)"}
+  # A pocket_pattern carries its own geometry — its name already says it makes
+  # pockets, so it needs no `source`. Hiding width and depth behind a source
+  # reference failed five of Atlas's DFM rules that the hand-written genome
+  # passed: the rules read them off this op.
+  - {op: pocket_pattern, id: channels, count: "$n_channels",
+     width: "$channel_width", depth: "$channel_depth", along: base_outline}
   # What the original genome called `edges: internal_channel_edges` — a name
-  # with no definition anywhere. This says it.
+  # with no definition anywhere in the repo. This says it.
   - {op: fillet, id: channel_break, edges: ["@edge:channels/floor_rim#*"],
      radius: "$channel_width * 0.25"}
-  - {op: hole, id: inlet, face: "@face:base/side#1", thread: G1_4}
-  - {op: hole, id: outlet, face: "@face:base/side#3", thread: G1_4}
-  - {op: hole, id: mount_hole, face: "@face:base/top", diameter: 4.5}
-  - {op: hole_pattern, id: mount_holes, source: mount_hole, count: 4}
+  - {op: hole, id: inlet, at: inlet_datum, thread: G1_4}
+  - {op: hole, id: outlet, at: outlet_datum, thread: G1_4}
+  # clearance for M4 bolts (nuts or standoffs behind), not tapped
+  - {op: hole_pattern, id: mount_holes, count: 4, diameter: 4.5, at: mount_datums}

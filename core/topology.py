@@ -64,11 +64,23 @@ ROLES: Dict[str, Dict[str, Tuple[str, ...]]] = {
     "thread":         {FACE: ("flank", "crest", "root"),      EDGE: ()},
 }
 
-# Ops that re-emit another op's faces rather than making their own. Their roles
-# are the roles of the op named in `source`, and because they always produce
-# more than one instance, a pointer into them must carry an ordinal.
-INSTANCING = {"mirror", "pattern_linear", "pattern_circular",
-              "hole_pattern", "pocket_pattern"}
+# Ops that produce many copies of a feature rather than one. A pointer into one
+# resolves its roles somewhere else, and because there is always more than one
+# instance, it must carry an ordinal (or `#*`).
+#
+# Two of them say in their own name what they make — a `pocket_pattern` makes
+# pockets — so they carry their geometry directly, exactly as the hand-written
+# genomes do. The generic three do not, and must name a `source` op to copy.
+# That distinction is not cosmetic: Atlas's DFM rules read width, depth and
+# diameter off the pattern op itself, and an archetype that hid them behind a
+# `source` reference failed five checks that the hand-written genome passed.
+INSTANCING: Dict[str, Optional[str]] = {
+    "mirror": None,
+    "pattern_linear": None,
+    "pattern_circular": None,
+    "hole_pattern": "hole",
+    "pocket_pattern": "pocket",
+}
 
 _POINTER_RE = re.compile(
     r"^@(?P<kind>face|edge):"
@@ -270,24 +282,31 @@ def _check_one(pointer: Pointer, raw: str, path: str, index: int,
 def _check_instanced(pointer: Pointer, raw: str, path: str, op_name: str,
                      params: Mapping[str, Any], ids: Mapping[str, int],
                      steps: Sequence[Tuple[str, Dict[str, Any]]]) -> List[Problem]:
-    """A pattern re-emits its source's faces, many times over.
+    """A pattern makes many copies of a feature.
 
-    So the role has to be valid for the source op, and the ordinal is not
-    optional: "the bore" of a six-hole pattern is not a thing.
+    Whose feature is either implied by the op's own name (`pocket_pattern`
+    makes pockets) or named in `source`. Either way the role has to be valid
+    for that op, and the ordinal is not optional: "the bore" of a six-hole
+    pattern is not a thing.
     """
+    problems: List[Problem] = []
     source_id = params.get("source")
-    if source_id is None:
+    implied = INSTANCING.get(op_name)
+
+    if source_id is not None:
+        source_index = ids.get(str(source_id))
+        if source_index is None:
+            return [Problem(path, raw, f"instances '{source_id}', which has no op",
+                            ", ".join(sorted(ids)))]
+        source_op, _ = steps[source_index]
+    elif implied:
+        source_op = implied
+    else:
         return [Problem(path, raw,
                         f"'{op_name}' does not name the op it instances",
-                        "an instancing op needs `source: <op_id>` before "
+                        "a generic pattern op needs `source: <op_id>` before "
                         "anything can point into it")]
-    source_index = ids.get(str(source_id))
-    if source_index is None:
-        return [Problem(path, raw, f"instances '{source_id}', which has no op",
-                        ", ".join(sorted(ids)))]
 
-    problems: List[Problem] = []
-    source_op, _ = steps[source_index]
     permitted = ROLES.get(source_op, {}).get(pointer.kind, ())
     if pointer.role not in permitted:
         problems.append(Problem(

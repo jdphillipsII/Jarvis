@@ -256,3 +256,53 @@ def test_resolve_all_flattens_a_plural_pointer():
 def test_all_instances_is_not_a_positional_claim_so_it_carries_no_caveat():
     assert Pointer.parse("@edge:channels/floor_rim#*").caveat == ""
     assert Pointer.parse("@edge:channels/floor_rim#2").caveat != ""
+
+
+# ---- a pattern whose own name says what it makes ----
+#      Found by running an archetype through Atlas's DFM rules: they read
+#      width, depth and diameter off the pattern op itself, so hiding the
+#      geometry behind a `source` reference failed five checks the
+#      hand-written genome passed.
+
+def named_pattern_program():
+    return [
+        {"op": "sketch", "id": "sk", "plane": "XY"},
+        {"op": "pad", "id": "base", "length": "$t"},
+        {"op": "pocket_pattern", "id": "channels", "count": 24,
+         "width": "$w", "depth": "$d", "along": "sk"},
+        {"op": "fillet", "edges": ["@edge:channels/floor_rim#*"], "radius": "1 mm"},
+    ]
+
+
+def test_a_pocket_pattern_implies_pockets_without_naming_a_source():
+    assert check_program(named_pattern_program()) == []
+
+
+def test_a_hole_pattern_implies_holes():
+    program = [{"op": "pad", "id": "base", "length": "$t"},
+               {"op": "hole_pattern", "id": "mounts", "count": 4, "diameter": 4.5},
+               {"op": "chamfer", "edges": ["@edge:mounts/entry_rim#*"], "size": "0.4 mm"}]
+    assert check_program(program) == []
+
+
+def test_the_implied_kind_still_constrains_the_role():
+    program = named_pattern_program()
+    program[3]["edges"] = ["@edge:channels/entry_rim#*"]     # that is a hole role
+    problem, = check_program(program)
+    assert "'pocket' (instanced by 'channels') makes no edge" in problem.reason
+
+
+def test_a_generic_pattern_still_has_to_name_its_source():
+    program = [{"op": "pad", "id": "base", "length": "$t"},
+               {"op": "pattern_linear", "id": "copies", "count": 3},
+               {"op": "fillet", "edges": ["@edge:copies/top_rim#*"], "radius": "1 mm"}]
+    problem, = check_program(program)
+    assert "generic pattern op needs `source: <op_id>`" in problem.suggestion
+
+
+def test_an_explicit_source_still_wins_over_the_implied_kind():
+    program = [{"op": "sketch", "id": "sk", "plane": "XY"},
+               {"op": "boss", "id": "stud", "height": "$h"},
+               {"op": "hole_pattern", "id": "studs", "source": "stud", "count": 4},
+               {"op": "fillet", "edges": ["@edge:studs/root#*"], "radius": "1 mm"}]
+    assert check_program(program) == []

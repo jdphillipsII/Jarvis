@@ -191,7 +191,9 @@ def build(bus: Optional[Bus] = None, briefing=None,
             a = library.get(archetype_id)
             if a is None:
                 raise KeyError(f"no archetype '{archetype_id}'")
-            return _arch.instantiate(a, values or {}, name=name)
+            return {"from_archetype": a.id, "status": a.status,
+                    "known_failure_modes": [m.name for m in a.failure_modes],
+                    "document": _arch.instantiate(a, values or {}, name=name)}
 
         reg.add(Tool(
             "design.instantiate",
@@ -205,6 +207,47 @@ def build(bus: Optional[Bus] = None, briefing=None,
                         "name": {"type": "string",
                                  "description": "name for the resulting part"}},
             required=("archetype_id",)))
+
+        # Registered on the checkout existing rather than on a live probe:
+        # probing means spawning a Python that imports scipy, and paying that
+        # on every toolbox build would put seconds into the wake path. The
+        # tool reports AtlasUnavailable clearly if the checkout is broken.
+        from core import atlas as _atlas
+        if os.path.isdir(_atlas.root()):
+            def evaluate_design(archetype_id: str,
+                                values: Optional[Dict[str, Any]] = None,
+                                conditions: Optional[Dict[str, Any]] = None
+                                ) -> Dict[str, Any]:
+                a = library.get(archetype_id)
+                if a is None:
+                    raise KeyError(f"no archetype '{archetype_id}'")
+                document = _arch.instantiate(a, values or {})
+                answer = _atlas.evaluate(document, a.analyses, conditions or {},
+                                         spec=a.id)
+                answer["between_the_analyses"] = _atlas.consistency(
+                    answer["results"])
+                answer["known_failure_modes"] = [
+                    {"name": m.name, "detected_by": m.detected_by or None}
+                    for m in a.failure_modes]
+                answer["status"] = a.status
+                return answer
+
+            reg.add(Tool(
+                "design.evaluate",
+                "Adapt an archetype and run the physics it declares: the "
+                "checker battery, the thermal or structural model, and the "
+                "independent cross-check. Reports what each analysis could "
+                "NOT check, where two analyses disagree, and the failure "
+                "modes none of them covers. Conditions are SI: flow_m3_s, "
+                "load_n.",
+                evaluate_design,
+                parameters={"archetype_id": {"type": "string"},
+                            "values": {"type": "object",
+                                       "description": "parameter overrides"},
+                            "conditions": {"type": "object",
+                                           "description": "operating conditions, "
+                                                          "e.g. {\"flow_m3_s\": 3.3e-5}"}},
+                required=("archetype_id",)))
 
     reg.add(Tool("briefing.read",
                  "Report anything held while the user was away or busy.",
