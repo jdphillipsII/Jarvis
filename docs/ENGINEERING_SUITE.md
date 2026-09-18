@@ -16,6 +16,12 @@ time* — no remembered approvals, no batching.
 
 ---
 
+> **Read [PRIOR_ART.md](PRIOR_ART.md) before building anything in stages 1–2.**
+> The CAD-driver layer is commodity — SolidWorks, build123d, FreeCAD and DXF
+> all have maintained MCP servers. They are borrowed through
+> `bridges/manifest.yaml`, which classifies each of their tools by agency
+> before any of them is visible to the model.
+
 ## Architecture: bridges, not imports
 
 Tools live in different places — some are Python libraries, some are CLIs, some
@@ -32,7 +38,18 @@ where the tool lives** and speaks the same protocol back.
 
 The Windows bridge is the interesting one: a small service using the SolidWorks
 COM API, reachable from Linux over the tailnet. It means the Linux side never
-needs to know SolidWorks exists — it is just another MCP server.
+needs to know SolidWorks exists — it is just another MCP server. We do not
+write it: `wzyn20051216/solidworks-automation-skill` already exists and is
+declared in `bridges/manifest.yaml`.
+
+**A bridged server does not get to say what it may do.** Every CAD MCP server
+surveyed executes on call, with no agency ceiling and no proposal step. The
+manifest names an agency level and a mutation flag for each tool, and a tool
+with no entry is not mounted at all — so a tool that appears upstream between
+one launch and the next stays invisible until a human has classified it.
+Classifying real servers rather than imagined ones turned up two of these
+immediately: build123d-mcp's `execute` runs arbitrary Python in a persistent
+session, and Autocad-MCP ships `system_run_command` and `system_run_lisp`.
 
 ---
 
@@ -231,13 +248,20 @@ Sequenced by value per hour, not by ambition.
    answers at voice speed, from code that already exists and is tested
 3. **git lab notebook** — cheap, and it means the agent's work leaves a trace
 4. **Onshape MCP** — the first real "describe it, see geometry" surface
-5. **Extend the `PartGenome` compiler** past its 5 implemented ops — `hole`,
+5. ~~**Stable topology pointers**~~ — **done.** `core/topology.py`.
+   `@face:base_pad/top` rather than "face 3", so the edit a parametric model
+   exists for stops silently retargeting a fillet. Ordered deliberately
+   *before* the compiler work below: every op added from here has to report its
+   provenance, and retrofitting that is strictly worse.
+   See [findings/2026-09-18-topology-pointers.md](findings/2026-09-18-topology-pointers.md).
+6. **Extend the `PartGenome` compiler** past its 5 implemented ops — `hole`,
    `fillet`, `chamfer`, `shell`, patterns. The checker is done; the generator
    is the gap.
-6. **Slicer + print** — closes the loop to a physical object
-7. **The rig** — closes the loop back to measurement
-8. **SolidWorks bridge** — last, because Onshape covers new work and this is
-   only needed for models that already live there
+7. **Slicer + print** — closes the loop to a physical object
+8. **The rig** — closes the loop back to measurement
+9. ~~**SolidWorks bridge**~~ — **declared.** Adopted rather than built, so it
+   costs a manifest entry instead of a service. Set `enabled: true` in
+   `bridges/manifest.yaml` once the server is installed on the Windows side.
 
 ## Gaps worth naming
 
@@ -250,6 +274,11 @@ Things the enumeration above shows are missing rather than merely unbuilt:
 - **Tolerance stack-up** is listed as deferred in Atlas's own design doc. Every
   process in the catalogue carries an ISO 2768 class, so the inputs exist; the
   Monte Carlo over them does not.
+- **The archetype library does not exist.** Every spec→CAD project surveyed
+  generates geometry from the spec each time; nobody retrieves and adapts,
+  which is how the work is actually done. `evaluate_cold_plate`'s required
+  parameters already constitute one archetype implicitly — naming it and adding
+  a second is the smallest useful step.
 - **The `PartGenome` compiler implements 5 of its 17 declared ops.** `hole`,
   `fillet`, `chamfer`, `shell`, `rib`, `thread` and the pattern ops are accepted
   by the schema and then honestly recorded as dark regions. The checker is the
