@@ -56,9 +56,41 @@ improves on `core/endpointing.py`, `core/policy.py`, or the proposal gate.
 
 ### Teaching visualisation
 
-Only one-off demos: `gpu-io` (1484★, a GPU compute library), `sciencelab3d`
-(19★). **No general LLM → teaching-visualisation harness exists.** That gap is
-real, not a wheel.
+At the time of the survey: only one-off demos — `gpu-io` (1484★, a GPU compute
+library), `sciencelab3d` (19★) — and the conclusion was that no general
+LLM → teaching-visualisation harness existed.
+
+**Corrected 2026-10-14: `wheresryan22/anatomy` is one.** MIT, ~18.6k lines,
+actively developed. A Claude skill that builds an explanatory figure as a real
+working machine: isometric SVG, four-tone shading, painter's order, optional
+WebGL layers registered to the isometric planes, and an optional true-3D mode.
+Verified here — built and rendered its smallest example on this machine.
+
+The part that matters is not the drawing. It is `kit/audit.mjs` (1913 lines),
+which ray-casts the assembled geometry and proves, at rest, apart and in every
+replayed frame of an animation, that no part passes through another, that
+every pipe end sits on a real mount, that no bend pinches or folds, that no
+curved profile's slope wobbles, and that every overlap is painted in depth
+order. `scripts/lines.mjs` separately proves every seam, tick and pointer ends
+on a stroke rather than floating — it reported `line ends: 0 of 367` on the
+example here. **That is `verify_part`'s certificate, for a drawing**, and it is
+the half nobody writes.
+
+Its workflow step 2 is "Truth first… write the model as a small pure module and
+drive everything from it", and `examples/ripple-tank/model.mjs` is 131 lines of
+real physics — gravity-plus-surface-tension dispersion with `tanh(kh)` finite
+depth, bisection for the wavenumber, numerical group velocity, viscous and
+boundary-layer damping, Snell-based caustic displacement. Every number on the
+card comes from it.
+
+So the gap is closed, and closed in the one way that is useful to us: by
+something that insists the figure is driven by a real model and then checks
+its own geometry.
+
+**It is an authoring skill, not a runtime tool.** There is nothing to mount in
+`bridges/manifest.yaml` — the "tool" is an agent with a code-writing loop. It
+does not reach the consent gate, the agency ceiling, or the intent bus, and it
+should not be made to.
 
 ---
 
@@ -138,7 +170,12 @@ for the tolerance stack-up gap named in the suite doc.
   surveyed projects has is not the retrieval, it is the refusal: a library
   that will say no archetype covers this problem rather than handing back its
   nearest entry.
-- **The teaching-visualisation harness.** Unclaimed.
+- ~~**The teaching-visualisation harness.**~~ Claimed by
+  `wheresryan22/anatomy` — see above. What remains ours is the bridge: our
+  physics is Python (CoolProp, `atlas_cad`), anatomy's models are JS. The
+  honest join is a generated table, not a second implementation. Reimplementing
+  Span–Wagner in JavaScript would create exactly the divergent second source of
+  truth every other rule here exists to prevent.
 
 ---
 
