@@ -249,6 +249,69 @@ def build(bus: Optional[Bus] = None, briefing=None,
                                                           "e.g. {\"flow_m3_s\": 3.3e-5}"}},
                 required=("archetype_id",)))
 
+    # ---- figures: a drawing is a cached view of a computation ----
+    # anatomy (docs/PRIOR_ART.md) draws them and audits its own geometry.
+    # What lives here is the half it cannot have: whether the numbers on the
+    # card are still the numbers the model computes.
+    from core import figures as _fig
+    gallery = _fig.load_all()
+    if gallery:
+        def list_figures() -> List[Dict[str, Any]]:
+            return [{"slug": f.slug, "title": f.title,
+                     "question": " ".join(f.question.split()),
+                     "source": " ".join(f.source.split()), "built": f.built}
+                    for f in gallery.values()]
+
+        reg.add(Tool(
+            "figure.list",
+            "List the explanatory figures and what each one is for.",
+            list_figures))
+
+        def check_figure(slug: str = "") -> Dict[str, Any]:
+            wanted = [gallery[slug]] if slug else list(gallery.values())
+            if slug and slug not in gallery:
+                raise KeyError(f"no figure '{slug}'")
+            out = {}
+            for figure in wanted:
+                state = _fig.check(figure)
+                out[figure.slug] = {
+                    "state": state.state, "summary": state.summary(),
+                    "reason": state.reason,
+                    "moved": [{"field": m[0], "was": m[1], "now": m[2],
+                               "by": round(m[3], 6)} for m in state.moved[:12]]}
+            return out
+
+        reg.add(Tool(
+            "figure.check",
+            "Re-run the model behind a figure and say whether its numbers "
+            "still hold. A figure can be beautiful, internally consistent and "
+            "quietly out of date — this is the only thing that notices. "
+            "'uncheckable' is not a kind of fresh.",
+            check_figure,
+            parameters={"slug": {"type": "string",
+                                 "description": "one figure, or all of them"}}))
+
+        def show_figure(slug: str) -> str:
+            figure = gallery.get(slug)
+            if figure is None:
+                raise KeyError(f"no figure '{slug}'")
+            if not figure.built:
+                raise FileNotFoundError(
+                    f"{slug} has not been built — run build.mjs in {figure.directory}")
+            # Say so rather than open it silently: the whole point is that a
+            # figure can be out of date without looking it.
+            state = _fig.check(figure)
+            publish("figure.open", slug=slug, path=figure.page_path)
+            return f"opening {slug} ({state.summary()})"
+
+        reg.add(Tool(
+            "figure.show",
+            "Open a built figure. Reports its freshness at the same time, "
+            "because an out-of-date figure does not look out of date.",
+            show_figure,
+            parameters={"slug": {"type": "string"}}, required=("slug",),
+            min_agency=Agency.ACTUATOR, mutates=True, confirm_label="Open"))
+
     reg.add(Tool("briefing.read",
                  "Report anything held while the user was away or busy.",
                  read_briefing))

@@ -6,6 +6,7 @@
     jarvis tools           list what JARVIS can do at the current agency
     jarvis bridges         borrowed MCP servers: what is classified, what is not
     jarvis archetypes [id]  the design library: what is proven, and how it fails
+    jarvis figures [slug]   explanatory figures, and whether their numbers still hold
     jarvis design k=v ...   select an archetype, adapt it, verify it, run the
                             physics — and end by naming what none of it covered
     jarvis chat            text-mode conversation with the full tool loop
@@ -331,6 +332,41 @@ def cmd_design(a) -> int:
     return 0
 
 
+def cmd_figures(a) -> int:
+    """Explanatory figures, and whether their numbers still hold."""
+    from core import figures as F
+    gallery = F.load_all()
+    if not gallery:
+        print("no figures (figures/*/figure.yaml)")
+        return 0
+    wanted = a.extra[0] if a.extra else ""
+    if wanted and wanted not in gallery:
+        print(f"{RED}no figure '{wanted}'{OFF}")
+        print(f"{DIM}have: {', '.join(sorted(gallery))}{OFF}")
+        return 1
+    shown = [gallery[wanted]] if wanted else list(gallery.values())
+
+    for figure in shown:
+        state = F.check(figure)
+        colour = {F.FRESH: GREEN, F.STALE: RED,
+                  F.UNCHECKABLE: RED, F.MISSING: DIM}[state.state]
+        built = f"{GREEN}built{OFF}" if figure.built else f"{DIM}not built{OFF}"
+        print(f"\n{figure.slug}  {colour}{state.state}{OFF}  {built}  "
+              f"{DIM}{figure.size}{OFF}")
+        print(f"  {' '.join(figure.title.split())}")
+        print(f"  {DIM}{' '.join(figure.question.split())}{OFF}")
+        print(f"  {DIM}numbers from:{OFF} {' '.join(figure.source.split())}")
+        if state.reason:
+            print(f"  {RED}{state.reason}{OFF}")
+        for field, was, now, by in state.moved[:8]:
+            print(f"  {RED}moved{OFF} {field}: {was!r} → {now!r} ({by:.2%})")
+        if figure.findings:
+            print(f"  {DIM}written up in:{OFF} {figure.findings}")
+    print(f"\n{DIM}a figure that cannot be re-checked is a picture, not a "
+          f"result{OFF}")
+    return 0
+
+
 def cmd_status(_) -> int:
     from daemon.toolbox.builtin import build
     from core.toolbox import Toolbox
@@ -604,6 +640,7 @@ def main() -> int:
             ("tools", cmd_tools, False), ("bridges", cmd_bridges, False),
             ("archetypes", cmd_archetypes, True),
             ("design", cmd_design, True),
+            ("figures", cmd_figures, True),
             ("chat", cmd_chat, False),
             ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
             ("listen", cmd_listen, True),

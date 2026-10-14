@@ -12,6 +12,8 @@ model:
   model.zoom:         {desc: "zoom model",   args: [delta],    floor: 0.80}
 mic:
   mic.mute:           {desc: "toggle mic mute",                floor: 0.95}
+figure:
+  figure.open:         {desc: "open a built figure",  args: [slug, path], floor: 1.00}
 jarvis:
   jarvis.interrupt:   {desc: "stop TTS mid-sentence",          floor: 0.95}
   jarvis.speak:       {desc: "speak text", args: [text],       floor: 1.00}

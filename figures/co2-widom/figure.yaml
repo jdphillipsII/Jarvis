@@ -1,0 +1,15 @@
+slug: co2-widom
+title: CO2 at 80 bar
+question: >-
+  Why peak specific heat is not a design number. The vessel's cross-sectional
+  area at height T is cp(T), so pouring energy in raises a level that is
+  temperature, and the volume up to any level is the enthalpy. The peak is a
+  bulge you cannot stay inside: absorbing heat is what moves you out of it.
+size: figure
+generator: generate:table
+source: >-
+  CoolProp 8.0.0, Span & Wagner 1996 reference equation of state for CO2, at
+  80 bar. Nothing fitted, smoothed or rounded for looks.
+findings: docs/findings/2026-08-27-co2-pseudocritical-audit.md
+page: co2-widom.html
+data: data.json
