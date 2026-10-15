@@ -92,6 +92,12 @@ its own geometry.
 does not reach the consent gate, the agency ceiling, or the intent bus, and it
 should not be made to.
 
+**Installed as a skill**, whole and unmodified, at `.claude/skills/anatomy`,
+pinned in `.claude/skills/anatomy.provenance`. `/anatomy` is therefore
+available to Claude Code in this repo. What JARVIS owns around it is
+[FIGURES.md](FIGURES.md): a figure is a cached view of a computation, so it
+has to know which computation, and whether the answer has changed since.
+
 ---
 
 ## cad-cae-copilot, in detail

@@ -1,0 +1,12 @@
+# Vendored third-party skill — do not edit the contents of skills/anatomy/.
+#
+# wheresryan22/anatomy, MIT, installed whole and unmodified as a project skill,
+# which is what `npx skills add wheresryan22/anatomy` does.
+#
+#   source:  https://github.com/wheresryan22/anatomy
+#   commit:  e9488296a44211c42701ff71705b7901470ec78f
+#   added:   2026-10-15
+#
+# To update: re-clone over it and bump the commit above. Do not cherry-pick or
+# trim it — SKILL.md tells Claude to open the nearest example before building,
+# so the examples are instructions, not ballast.

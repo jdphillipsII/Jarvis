@@ -8,6 +8,25 @@ is done by [`anatomy`](https://github.com/wheresryan22/anatomy) (MIT), which
 also ray-casts its own geometry to prove no part passes through another — see
 [PRIOR_ART.md](PRIOR_ART.md).
 
+## The skill is installed, not borrowed
+
+anatomy is an Agent Skill, and it is installed as one: the whole repository,
+unmodified, at `.claude/skills/anatomy`, which is where
+`npx skills add wheresryan22/anatomy` puts it for a project. So **`/anatomy` is
+available to Claude Code in this repo**, and `node build.mjs` in a figure
+directory needs nothing outside it.
+
+The pinned commit is recorded in `.claude/skills/anatomy.provenance`. Do not
+edit or trim the installed copy: `SKILL.md` tells Claude to open the nearest
+example before building anything, so the examples are instructions rather than
+ballast, and a skill trimmed to save space is a skill that fails in a way
+nobody predicted.
+
+The distinction matters because it is easy to use the kit as a library, write
+the build by hand from an example, and end up with *a demo of the skill*
+instead of the skill's output. The difference shows up in the verification
+step, which is the part a hand-rolled build skips.
+
 **JARVIS does not author figures.** That needs an agent with a code-writing
 loop and the patience to read its own renders. What JARVIS owns is the half
 anatomy cannot have.
@@ -105,9 +124,27 @@ The last point is the lesson the object teaches by being operated: the bulge is
 not somewhere you can sit, because absorbing heat is the thing that carries you
 out of it.
 
-**Where it stands against anatomy's bar:** it builds in both themes, the
-console is clean, and the model round-trips. It is **not** finished to their
-standard — `scripts/lines.mjs` reports 64 of 252 line ends floating against a
-bar of 0, there is no `--audit` hook (no recorder, no pipes), and at 4× there
-are bare faces. It is a working first pass that proves the pipeline, not a
-reference figure.
+**Where it stands against anatomy's bar.**
+
+Met: it builds in both themes, the console is clean, the model round-trips, and
+`scripts/lines.mjs` reports **`line ends: 0 of 258`** in dark *and* light —
+every seam, rule, tick and pointer ends on a stroke, a dot or an outline.
+
+Getting there was the part a hand-rolled build skips, and each fix was real
+geometry rather than a nudge:
+
+- the graduation ticks were drawn at the post's mid-depth, so they floated
+  several pixels off its visible face. They are now a proper graduated plate
+  read on the near face, with an outer rule and an inner rule: minor ticks land
+  on the inner one, major ticks on the outer one, which is also what a real
+  scale looks like.
+- `radialTicks` roots a tick's outer end on its ring and leaves the inner end
+  loose, so the dial's long ticks pointed into a blank face. The dial now has a
+  chapter ring for them to land on, as a real dial does.
+- the needle's tail overshot its hub by 2.4 units. The tail now ends exactly on
+  the hub ring.
+
+Not met: no `--audit` hook (the figure has no recorder and no pipework, so the
+clearance and depth-order proofs are not wired), and the 4× close-up pass over
+every junction in both themes has not been done. Part count is around 40, the
+bottom of the Figure band.

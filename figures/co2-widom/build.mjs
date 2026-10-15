@@ -8,7 +8,8 @@
 //   node build.mjs            dark
 //   node build.mjs --light    light
 //
-// Needs the anatomy kit. Point ANATOMY_ROOT at a checkout.
+// Built with the anatomy skill, installed at .claude/skills/anatomy. Nothing
+// outside the repo is needed; ANATOMY_ROOT only overrides it for development.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -16,7 +17,8 @@ import { fileURLToPath } from "node:url";
 import { modelOf } from "./model.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = process.env.ANATOMY_ROOT || join(HERE, "..", "..", "..", "thirdparty", "anatomy");
+const ROOT = process.env.ANATOMY_ROOT
+  || join(HERE, "..", "..", ".claude", "skills", "anatomy");
 const k = await import(join(ROOT, "kit", "iso-kit.mjs"));
 const G = await import(join(ROOT, "kit", "lathe.mjs"));
 const { kitScript } = await import(join(ROOT, "scripts", "inline-kit.mjs"));
@@ -43,6 +45,7 @@ const GAUGE = [96, 4];
 const GAUGE_R = 26;
 const GAUGE_Z = 118;
 const GAUGE_H = 12;
+const HUB_R = 3.2;              // the needle's tail ends on this ring, not past it
 const INLET_Z = TOP + 22;
 
 const zOf = (tc) => FLOOR + ((tc - M.low) / (M.high - M.low)) * COLUMN;
@@ -142,24 +145,39 @@ function pedestal() {
 }
 
 function scalePost() {
+  // A graduated plate, read on its near face. Every tick ends on a rule:
+  // minor ticks on the inner rule, major ticks on the outer one, which is
+  // what a real scale looks like and what the line check asks for.
   const out = [];
-  const post = { x: SCALE_X - 5, y: -4, w: 10, d: 8, r: 1 };
-  out.push(S(k.slabOf(post, 0, TOP + 6, P, 2, 0.5), { tone: "mid" }));
-  // Graduations: every degree, long every five, and the Widom line called out.
+  const FACE = 4;                       // the face turned toward the viewer
+  const RULE_L = SCALE_X;
+  const RULE_M = SCALE_X + 4.5;
+  const RULE_R = SCALE_X + 11;
+  const post = { x: RULE_L - 3.5, y: -FACE, w: (RULE_R - RULE_L) + 7, d: FACE * 2, r: 1 };
+  out.push(S(k.slabOf(post, 0, TOP + 7, P, 2, 0.5), { tone: "mid" }));
+
+  const rule = (x, from, to) => k.segment([x, FACE, from], [x, FACE, to], P);
+  out.push(L(rule(RULE_L, zOf(M.low), zOf(M.high)) + rule(RULE_R, zOf(M.low), zOf(M.high)),
+    { tone: "mid" }));
+  out.push(L(rule(RULE_M, zOf(M.low), zOf(M.high)), { tone: "lo" }));
+
   const minor = [];
   const major = [];
   for (let tc = Math.ceil(M.low); tc <= M.high; tc += 1) {
     const z = zOf(tc);
-    const long = tc % 5 === 0;
-    const run = k.segment([SCALE_X + 5, 0, z], [SCALE_X + 5 + (long ? 9 : 5), 0, z], P);
-    (long ? major : minor).push(run);
+    const far = tc % 5 === 0 ? RULE_R : RULE_M;
+    (tc % 5 === 0 ? major : minor).push(k.segment([RULE_L, FACE, z], [far, FACE, z], P));
   }
   out.push(L(minor.join(""), { tone: "lo" }));
   out.push(L(major.join(""), { tone: "mid" }));
+
+  // The Widom line, called out. Its far end carries a dot, so it is rooted at
+  // both ends rather than pointing into space.
   const peakZ = zOf(M.peak.t_c);
-  out.push(L(k.segment([SCALE_X + 5, 0, peakZ], [SCALE_X + 20, 0, peakZ], P), { tone: "lit" }));
-  out.push(D([at([SCALE_X + 21, 0, peakZ])], { size: 0.8, tone: "lit" }));
-  out.push(D([at([SCALE_X, -4, TOP + 6]), at([SCALE_X, 4, TOP + 6])], { size: 0.45 }));
+  const tipX = RULE_R + 13;
+  out.push(L(k.segment([RULE_L, FACE, peakZ], [tipX, FACE, peakZ], P), { tone: "lit" }));
+  out.push(D([at([tipX, FACE, peakZ])], { size: 0.85, tone: "lit" }));
+  out.push(D([at([RULE_L, FACE, zOf(M.low)]), at([RULE_R, FACE, zOf(M.high)])], { size: 0.45 }));
   return out.join("");
 }
 
@@ -187,17 +205,26 @@ function gauge() {
   const stand = { x: GAUGE[0] - 9, y: GAUGE[1] - 7, w: 18, d: 14, r: 2 };
   out.push(S(k.slabOf(stand, 0, GAUGE_Z, P, 3, 0.6), { tone: "mid" }));
   out.push(S(G.lathe([[0, GAUGE_R], [GAUGE_H - 2, GAUGE_R], [GAUGE_H, GAUGE_R - 2.5]], F, P, { steps: 56, bevel: 0.6 }), { tone: "mid" }));
-  out.push(L(G.circleOf(F, GAUGE_H, GAUGE_R - 3.5, P, 56), { tone: "lo" }));
-  const dial = k.radialTicks(GAUGE[0], GAUGE[1], GAUGE_R - 6, 40, 5, GAUGE_Z + GAUGE_H, [4, 7], P);
+  const FACE_R = GAUGE_R - 3.5;
+  out.push(L(G.circleOf(F, GAUGE_H, FACE_R, P, 56), { tone: "lo" }));
+  // Two rings, as a real dial has: ticks run inward from the bezel ring and
+  // the long ones land on the chapter ring, so both ends sit on a stroke.
+  const CHAPTER_R = FACE_R - 7;
+  out.push(L(G.circleOf(F, GAUGE_H, CHAPTER_R, P, 48), { tone: "lo" }));
+  const dial = k.radialTicks(GAUGE[0], GAUGE[1], FACE_R, 40, 5, GAUGE_Z + GAUGE_H, [3.5, 7], P);
   out.push(L(dial.minor, { tone: "lo" }), L(dial.major, { tone: "mid" }));
   out.push(D(G.dotsOf(F, GAUGE_H, GAUGE_R - 1.5, 6, P, { all: true }), { size: 0.45 }));
+  // A hub, so the needle's tail ends on a part rather than in the middle of a
+  // blank face.
+  out.push(S(k.cylinder(GAUGE[0], GAUGE[1], HUB_R, GAUGE_Z + GAUGE_H, 1.2, P, 20), { tone: "hi" }));
+  out.push(L(k.ring(GAUGE[0], GAUGE[1], HUB_R, GAUGE_Z + GAUGE_H + 1.2, P, 20), { tone: "lo" }));
   return out.join("");
 }
 
 export function needleAt(fraction) {
   const angle = -Math.PI / 2 + fraction * Math.PI * 1.6 - Math.PI * 0.3;
   const tip = [GAUGE[0] + Math.cos(angle) * (GAUGE_R - 9), GAUGE[1] + Math.sin(angle) * (GAUGE_R - 9), GAUGE_Z + GAUGE_H + 0.6];
-  const tail = [GAUGE[0] - Math.cos(angle) * 5, GAUGE[1] - Math.sin(angle) * 5, GAUGE_Z + GAUGE_H + 0.6];
+  const tail = [GAUGE[0] - Math.cos(angle) * HUB_R, GAUGE[1] - Math.sin(angle) * HUB_R, GAUGE_Z + GAUGE_H + 0.6];
   return k.segment(tail, tip, P);
 }
 
@@ -239,6 +266,7 @@ const needleAt = ${needleAt.toString()
   .replace(/GAUGE_R/g, String(GAUGE_R))
   .replace(/GAUGE_Z/g, String(GAUGE_Z))
   .replace(/GAUGE_H/g, String(GAUGE_H))
+  .replace(/HUB_R/g, String(HUB_R))
   .replace(/GAUGE/g, JSON.stringify(GAUGE))};
 const stage = document.querySelector(".iso-stage");
 const svg = stage.querySelector("svg");
