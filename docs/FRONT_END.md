@@ -2,9 +2,19 @@
 
     python3 ~/jarvis/cli.py link            once: puts `jarvis` on PATH
     jarvis install                          units, desktop entries, the rest
+    systemctl --user daemon-reload
     systemctl --user enable --now jarvis    the one process
     jarvis app                              the application window
     jarvis companion                        the small window that follows you
+
+After that, `jarvis app` starts the service itself if it is not up. Clicking an
+app icon should start the app, rather than telling you to go and do it in a
+terminal — which is the thing a front end exists to stop. If it cannot start,
+it prints the unit's own last twelve log lines instead of a shrug.
+
+`jarvis doctor` checks the whole chain: the command on PATH, that the
+interpreter the launcher will use can import what the service needs, that the
+unit exists, and that it is running.
 
 The first line is the bootstrap and only needs running once. `jarvis` is a
 four-line launcher in `~/.local/bin` that resolves the venv at run time and

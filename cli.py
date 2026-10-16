@@ -66,6 +66,24 @@ def cmd_doctor(_) -> int:
     check("jarvis on PATH", linked(),
           f"python3 {ROOT}/cli.py link")
 
+    # The launcher picks this interpreter, so check THAT one can import what
+    # the service needs — not whichever python happens to be running doctor.
+    runner = _venv_python()
+    probe = subprocess.run(
+        [runner, "-c", "import yaml, requests"], capture_output=True, text=True)
+    check("service imports", probe.returncode == 0,
+          f"{runner} -m pip install pyyaml requests"
+          + (f"   ({probe.stderr.strip().splitlines()[-1]})"
+             if probe.stderr.strip() else ""))
+
+    unit = os.path.expanduser("~/.config/systemd/user/jarvis.service")
+    check("jarvis.service", os.path.exists(unit), "jarvis install")
+    if os.path.exists(unit):
+        active = subprocess.run(["systemctl", "--user", "is-active", "jarvis"],
+                                capture_output=True, text=True).stdout.strip()
+        check("jarvis running", active == "active",
+              "systemctl --user enable --now jarvis")
+
     groups = subprocess.run(["id", "-nG"], capture_output=True, text=True).stdout.split()
     check("render/video groups", {"render", "video"} <= set(groups),
           "sudo usermod -aG video,render $USER  then reboot")
