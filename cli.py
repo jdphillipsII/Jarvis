@@ -7,6 +7,8 @@
     jarvis bridges         borrowed MCP servers: what is classified, what is not
     jarvis archetypes [id]  the design library: what is proven, and how it fails
     jarvis figures [slug]   explanatory figures, and whether their numbers still hold
+    jarvis author <subject>  local model: describe the shape, fit it, build it
+    jarvis figure-bench [models]  score models on shape, restraint and binding
     jarvis design k=v ...   select an archetype, adapt it, verify it, run the
                             physics — and end by naming what none of it covered
     jarvis chat            text-mode conversation with the full tool loop
@@ -367,6 +369,91 @@ def cmd_figures(a) -> int:
     return 0
 
 
+def cmd_author(a) -> int:
+    """Run a subject through the local model: shape, archetype, genome, page."""
+    from core import figure_archetypes as fa
+    from core.figure_author import author
+    from core.figure_compiler import emit
+    from core.ollama import OllamaChat
+
+    subject = " ".join(t for t in a.extra if not t.startswith("-")).strip()
+    if not subject:
+        print("usage: jarvis author <what to explain>")
+        return 2
+    model = a.model or _cfg("JARVIS_CHAT_MODEL", "qwen2.5:7b")
+    library = fa.Library.load()
+    print(f"{DIM}{model} · {len(library)} archetypes{OFF}\n")
+
+    draft = author(subject, library, OllamaChat(model))
+    print(f"{DIM}shape{OFF}  " + (", ".join(draft.traits) or
+                                  f"{DIM}none — no mechanism{OFF}"))
+    if draft.lesson:
+        print(f"{DIM}lesson{OFF} {draft.lesson}")
+    if draft.refusal:
+        print(f"\n{RED}refused{OFF}\n{draft.refusal}")
+        return 1
+    if draft.faults:
+        print(f"\n{RED}the binding did not hold{OFF}")
+        for fault in draft.faults:
+            print(f"  {fault}")
+        return 1
+
+    print(f"\n{GREEN}{draft.archetype.id}{OFF} — "
+          f"{' '.join(draft.archetype.object.split())}")
+    print(f"{DIM}figure{OFF} {draft.genome.figure}")
+    print(f"{DIM}question{OFF} {draft.genome.question}")
+    for part in draft.genome.parts:
+        if part.note:
+            print(f"  {part.id:<18} {DIM}{part.note}{OFF}")
+
+    if not a.build:
+        print(f"\n{DIM}--build to compile and write the page{OFF}")
+        return 0
+    import os
+    where = os.path.join(ROOT, "figures", draft.genome.figure.replace("_", "-"))
+    os.makedirs(where, exist_ok=True)
+    import yaml as _yaml
+    with open(os.path.join(where, "genome.yaml"), "w") as fh:
+        _yaml.safe_dump(draft.document, fh, sort_keys=False)
+    with open(os.path.join(where, "build.mjs"), "w") as fh:
+        fh.write(emit(draft.genome))
+    print(f"\n{GREEN}wrote{OFF} {where}/genome.yaml and build.mjs")
+    print(f"{DIM}then:{OFF} cd {where} && node build.mjs")
+    return 0
+
+
+def cmd_figure_bench(a) -> int:
+    """Score models on describing a shape — and on refusing when there isn't one."""
+    from core import figure_archetypes as fa
+    from core.figure_bench import DEFAULT_CASES, render, render_failures, run
+    from core.ollama import OllamaChat
+
+    models = [t for t in a.extra if not t.startswith("-")] or \
+        [_cfg("JARVIS_CHAT_MODEL", "qwen2.5:7b")]
+    library = fa.Library.load()
+    print(f"{DIM}{len(DEFAULT_CASES)} cases, "
+          f"{sum(1 for c in DEFAULT_CASES if c.is_refusal)} of them refusals · "
+          f"{len(library)} archetypes{OFF}\n")
+    reports = []
+    for model in models:
+        try:
+            reports.append(run(OllamaChat(model), library,
+                               DEFAULT_CASES, model=model))
+        except Exception as exc:
+            print(f"{RED}{model}: {exc}{OFF}")
+    if not reports:
+        return 1
+    print(render(reports))
+    for report in reports:
+        if report.failures():
+            print(f"\n{DIM}{report.model} missed{OFF}")
+            print(render_failures(report))
+    print(f"\n{DIM}restraint is weighted the same as shape: a model that "
+          f"always finds a mechanism is worse than one that sometimes does"
+          f"{OFF}")
+    return 0
+
+
 def cmd_status(_) -> int:
     from daemon.toolbox.builtin import build
     from core.toolbox import Toolbox
@@ -641,6 +728,8 @@ def main() -> int:
             ("archetypes", cmd_archetypes, True),
             ("design", cmd_design, True),
             ("figures", cmd_figures, True),
+            ("author", cmd_author, True),
+            ("figure-bench", cmd_figure_bench, True),
             ("chat", cmd_chat, False),
             ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
             ("listen", cmd_listen, True),
@@ -659,6 +748,10 @@ def main() -> int:
         sub.choices[name].add_argument(
             "--manifold", default="",
             help="a manifold part.yaml, for the flow-network analysis")
+    sub.choices["author"].add_argument("--model", default="",
+                                       help="which local model to ask")
+    sub.choices["author"].add_argument("--build", action="store_true",
+                                       help="write the genome and build.mjs")
     args, unknown = ap.parse_known_args()
     if unknown and not getattr(args, "passthrough", False):
         ap.error("unrecognized arguments: " + " ".join(unknown))

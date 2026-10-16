@@ -138,7 +138,22 @@ README.
    mechanism in a closed trait vocabulary and the library matches; it never
    invents or picks an object. Three answers: matched, nothing fits, and no
    mechanism. See [FIGURE_ARCHETYPES.md](FIGURE_ARCHETYPES.md).
-4. **The local model front end** ← next. Grammar-constrained emission, scored by
-   `bench.py` against genomes we have hand-written.
-5. **The loop** — emit, compile, `lines.mjs`, `--audit`, feed failures back.
-   Deterministic failures mean the model gets told exactly what to fix.
+4. ~~**The local model front end**~~ — **done.** `core/figure_author.py` and
+   `core/figure_bench.py`, driven by `jarvis author` and `jarvis figure-bench`.
+
+   The model is trusted with two small jobs and nothing else. It **describes**
+   a mechanism in the trait vocabulary — never what object to draw. Then, when
+   an archetype's genome already exists, it **binds**: the question, the
+   subject line, a few parameter values, a label per part. Not the layout. The
+   binding grammar is generated from that one genome, so its parameter names
+   are that genome's parameters and its labelled parts are that genome's parts.
+   A model cannot name one that is not there.
+
+   The bench scores three things, and **restraint carries the same weight as
+   accuracy**: four of its seventeen cases have no mechanism at all. A model
+   that always finds one is worse than a model that sometimes does, and a
+   bench without refusal cases rewards exactly the wrong instinct.
+5. **The loop** ← next. Emit, compile, `lines.mjs`, `--audit`, feed failures
+   back. Deterministic failures mean the model gets told exactly what to fix,
+   and `kit/audit.mjs` already exports every check individually
+   (see the density-probe finding).

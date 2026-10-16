@@ -19,11 +19,21 @@ class OllamaChat:
         self.options = options or {"temperature": 0.4}
 
     def __call__(self, messages: List[Dict[str, Any]],
-                 tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+                 tools: Optional[List[Dict[str, Any]]] = None,
+                 schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """`schema` holds generation to a JSON Schema.
+
+        This is the lever on local hardware. Under a grammar the model does
+        not try to produce a valid answer — the sampler will not emit the
+        tokens of an invalid one, so a 7B can be held to a shape a much larger
+        model would have to remember.
+        """
         body: Dict[str, Any] = {"model": self.model, "messages": messages,
                                 "stream": False, "options": self.options}
         if tools:
             body["tools"] = tools
+        if schema:
+            body["format"] = schema
         r = requests.post(self.url, json=body, timeout=self.timeout)
         r.raise_for_status()
         return r.json().get("message", {}) or {}

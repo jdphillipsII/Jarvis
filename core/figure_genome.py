@@ -154,6 +154,12 @@ def load(document: Mapping[str, Any]) -> Tuple[Optional[FigureGenome], List[Faul
     for key in ("figure", "question", "subject"):
         if not str(document.get(key) or "").strip():
             faults.append(Fault(key, "required"))
+    # The figure's name becomes a file name, so it is held to the same shape as
+    # a part id. The emitted schema says so; the loader has to as well, because
+    # a transport without grammar support will happily hand over "Bad Name".
+    if document.get("figure") and not _ID.match(str(document["figure"])):
+        faults.append(Fault("figure", "must be lower_snake_case — it becomes "
+                                      "a file name"))
 
     size = str(document.get("size", "figure"))
     if size not in ("figure", "hero", "epic"):
