@@ -85,6 +85,15 @@ class Fault:
         return f"{self.path}: {self.reason}{tail}"
 
 
+# The field is `sits_on`, not `on`. YAML 1.1 reads an unquoted `on:` key as
+# the boolean True, so a hand-written genome silently loses every support
+# declaration — anatomy's own pilot genome carries a comment about the same
+# trap. `on` is still accepted (JSON has no such problem), and a genome that
+# fell into it is told exactly what happened rather than being handed fifteen
+# identical faults.
+SUPPORT_KEYS = ("sits_on", "on")
+
+
 @dataclass(frozen=True)
 class Part:
     id: str
@@ -208,11 +217,19 @@ def _part(where: str, raw: Any, seen: Mapping[str, int], parts: Sequence[Part],
         faults.append(Fault(f"{where}.kind", f"unknown kind '{kind}'",
                             f"kinds: {', '.join(sorted(KINDS))}"))
 
-    on = str(raw.get("on") or "")
+    if True in raw and not any(k in raw for k in SUPPORT_KEYS):
+        faults.append(Fault(
+            where, "YAML read an unquoted `on:` as the boolean True",
+            "write `sits_on:` — this is YAML 1.1, where on/off/yes/no are "
+            "booleans"))
+        on = ""
+    else:
+        on = str(next((raw[k] for k in SUPPORT_KEYS if raw.get(k)), "") or "")
     faults.extend(_support(where, on, seen, parts))
 
     fields = {k: v for k, v in raw.items()
-              if k not in ("id", "kind", "on", "tone", "lit", "note")}
+              if k not in ("id", "kind", "tone", "lit", "note")
+              and k not in SUPPORT_KEYS and k is not True}
     if spec is not None:
         missing = [n for n in spec["needs"] if n not in fields]
         if missing:
@@ -318,11 +335,11 @@ def schema() -> Dict[str, Any]:
                 "type": "array", "minItems": 12,
                 "items": {
                     "type": "object",
-                    "required": ["id", "kind", "on"],
+                    "required": ["id", "kind", "sits_on"],
                     "properties": {
                         "id": {"type": "string", "pattern": _ID.pattern},
                         "kind": {"enum": sorted(KINDS)},
-                        "on": {"type": "string",
+                        "sits_on": {"type": "string",
                                "description": f"'{GROUND}', an earlier part id, "
                                               f"or @face:<part>/<role>"},
                         "tone": {"enum": list(TONES)},

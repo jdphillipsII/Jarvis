@@ -122,11 +122,16 @@ README.
 
 ## Build order
 
-1. **The genome schema and loader** — the checkable half, hardware-free, the
-   way `PartGenome`'s checker came before its compiler.
-2. **The compiler for a narrow vocabulary** — slab, cylinder, turned body,
-   pattern, rule, tick strip. Enough for a bench-and-instrument figure.
-3. **The archetype library for figures** — name the vessel we already built,
+1. ~~**The genome schema and loader**~~ — **done.** `core/figure_genome.py`.
+2. ~~**The compiler for a narrow vocabulary**~~ — **done.**
+   `core/figure_compiler.py`. Ten kinds; `figures/tool-gate/genome.yaml` is a
+   hand-written genome of our own tool gate that compiles to a built page with
+   **no coordinate typed anywhere** — every position solved from what each
+   part sits on. Two properties fell out of the support rule rather than being
+   added: declaration order *is* painter's order, and nothing can float.
+   What it does not yet do is craft: ticks that land on rules, apertures cut
+   rather than drawn, and any motion at all. 48 of 50 line ends float.
+3. **The archetype library for figures** ← next. Name the vessel we already built,
    add the bucket (inflow, outflow, overflow) and the gate (parts that must
    align). Selection with a real "nothing fits".
 4. **The local model front end** — grammar-constrained emission, scored by

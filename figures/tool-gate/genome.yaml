@@ -1,0 +1,145 @@
+# The gate every tool call passes through, as an object.
+#
+# core/toolbox.py checks agency, then schema, then consent, in that order, and
+# refuses at the first that says no. Three apertures in series on one rail: the
+# call only reaches the far end when all three are open.
+#
+# Hand-written to prove the compiler. A local model emits exactly this shape.
+figure: tool_gate
+question: >-
+  why a tool call that fails the first gate never reaches the second, and why
+  the order is not negotiable
+subject: the call travelling the rail
+archetype: gate.series_apertures
+size: figure
+camera: {azimuth: 42}
+
+params:
+  bed_w: 300
+  bed_d: 130
+  bed_h: 13
+  post_h: 96
+  gate_gap: 74
+  rail_h: 5
+  token_r: 7
+
+parts:
+  - id: bed
+    kind: slab
+    sits_on: ground
+    plan: {w: $bed_w, d: $bed_d, r: 8}
+    height: $bed_h
+    tone: mid
+    note: the bench everything stands on
+
+  - id: foot
+    kind: cylinder
+    sits_on: bed
+    at: {x: -126, y: -46, z: -19}
+    radius: 7
+    height: 6
+    tone: lo
+  - id: feet
+    kind: pattern
+    sits_on: bed
+    of: foot
+    count: 2
+    step: {x: 252, y: 0}
+    note: the other side of the pair
+
+  - id: screws
+    kind: dots
+    sits_on: bed
+    at: "corners:bed"
+    inset: 12
+
+  - id: rail
+    kind: slab
+    sits_on: "@face:bed/top"
+    at: {x: 0, y: 0}
+    plan: {w: 236, d: 9, r: 1}
+    height: $rail_h
+    tone: mid
+    note: the path a call takes from entry to execution
+
+  - id: gate_agency
+    kind: slab
+    sits_on: "@face:bed/top"
+    at: {x: -74, y: 0}
+    plan: {w: 7, d: 60, r: 1}
+    height: $post_h
+    tone: mid
+    note: first — a tool above the ceiling is never even shown
+  - id: aperture_agency
+    kind: ring
+    sits_on: "@face:gate_agency/side"
+    at: {x: 0, y: 0, z: 34}
+    radius: 11
+    tone: lo
+
+  - id: gate_schema
+    kind: slab
+    sits_on: "@face:bed/top"
+    at: {x: 0, y: 0}
+    plan: {w: 7, d: 60, r: 1}
+    height: $post_h
+    tone: mid
+    note: second — arguments are checked before the handler is entered
+  - id: aperture_schema
+    kind: ring
+    sits_on: "@face:gate_schema/side"
+    at: {x: 0, y: 0, z: 34}
+    radius: 11
+    tone: lo
+
+  - id: gate_consent
+    kind: slab
+    sits_on: "@face:bed/top"
+    at: {x: $gate_gap, y: 0}
+    plan: {w: 7, d: 60, r: 1}
+    height: $post_h
+    tone: mid
+    note: third — anything mutating returns a proposal, not a result
+  - id: aperture_consent
+    kind: ring
+    sits_on: "@face:gate_consent/side"
+    at: {x: 0, y: 0, z: 34}
+    radius: 11
+    tone: lo
+
+  - id: scale
+    kind: slab
+    sits_on: "@face:bed/top"
+    at: {x: 0, y: 52}
+    plan: {w: 236, d: 7, r: 1}
+    height: 0.8
+    tone: lo
+  - id: graduations
+    kind: ticks
+    sits_on: "@face:scale/top"
+    from: [-112, 0, 0]
+    to: [112, 0, 0]
+    count: 24
+    every: 6
+    reach: 2.4
+    long: 4.5
+    tone: mid
+
+  - id: knob
+    kind: knurl
+    sits_on: "@face:bed/top"
+    at: {x: 118, y: -44}
+    radius: 11
+    height: 14
+    tone: mid
+    note: the only control a person has — raising agency is a deliberate act
+
+  - id: token
+    kind: cylinder
+    sits_on: "@face:rail/top"
+    at: {x: -112, y: 0}
+    radius: $token_r
+    height: 9
+    tone: hi
+    lit: true
+    note: one call, travelling
