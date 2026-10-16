@@ -7,6 +7,9 @@
     jarvis bridges         borrowed MCP servers: what is classified, what is not
     jarvis archetypes [id]  the design library: what is proven, and how it fails
     jarvis figures [slug]   explanatory figures, and whether their numbers still hold
+    jarvis serve           the one JARVIS: every surface is a view of it
+    jarvis app             open the application window
+    jarvis companion       open the small pinned window
     jarvis author <subject>  local model: describe the shape, fit it, build it
     jarvis figure-bench [models]  score models on shape, restraint and binding
     jarvis design k=v ...   select an archetype, adapt it, verify it, run the
@@ -454,7 +457,64 @@ def cmd_figure_bench(a) -> int:
     return 0
 
 
+def cmd_serve(a) -> int:
+    """Run the one JARVIS. Every other surface is a client of this."""
+    from daemon.service import DEFAULT_PORT, Jarvis, serve
+    port = int(a.port or DEFAULT_PORT)
+    jarvis = Jarvis.start()
+    server = serve(jarvis, port=port)
+    tools = len(jarvis.toolbox.registry.available(jarvis.toolbox.agency))
+    print(f"{GREEN}JARVIS{OFF} on http://127.0.0.1:{port}  "
+          f"{DIM}agency {jarvis.toolbox.agency.name.lower()} · "
+          f"{tools} tools{OFF}")
+    print(f"{DIM}token written to ~/.local/state/jarvis/token (0600){OFF}")
+    print(f"{DIM}loopback only — this can confirm a pending command{OFF}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopping.")
+    finally:
+        server.shutdown()
+    return 0
+
+
+def _window(mode: str) -> int:
+    launcher = os.path.join(ROOT, "setup", "app", "jarvis-window")
+    if not os.path.exists(launcher):
+        print(f"{RED}missing {launcher}{OFF}")
+        return 1
+    return subprocess.call([launcher, mode])
+
+
+def cmd_app(_) -> int:
+    """Open the application window."""
+    return _window("app")
+
+
+def cmd_companion(_) -> int:
+    """Open the small pinned window that follows you around."""
+    return _window("companion")
+
+
 def cmd_status(_) -> int:
+    from core.client import Client, NotRunning
+    # Prefer the running JARVIS: it answers from a warm process, and anything
+    # it has pending is real rather than a fresh store that knows nothing.
+    try:
+        client = Client()
+        state = client.state()
+    except NotRunning:
+        pass
+    else:
+        print(f"  {'agency':<16} {state['agency']}")
+        print(f"  {'uptime':<16} {state['uptime_s']}s")
+        result = client.invoke("system.status")
+        for key, value in sorted((result.get("value") or {}).items()):
+            print(f"  {key:<16} {value}")
+        for proposal in state.get("proposals") or []:
+            print(f"  {RED}pending{OFF}          {proposal['summary']}")
+        return 0
+
     from daemon.toolbox.builtin import build
     from core.toolbox import Toolbox
     from core.tools import Agency
@@ -674,6 +734,8 @@ def cmd_install(_) -> int:
     os.makedirs(unit_dir, exist_ok=True)
     py = _venv_python()
     units = {
+        "jarvis.service": ("JARVIS — the one process every surface talks to",
+                           f"{py} {ROOT}/cli.py serve"),
         "jarvis-watch.service": ("JARVIS proactive daemon", f"{py} {ROOT}/cli.py watch"),
         "jarvis-presence.service": ("JARVIS presence detection",
                                     f"{py} {ROOT}/vision/presence_daemon.py"),
@@ -695,8 +757,26 @@ WorkingDirectory={ROOT}
 WantedBy=default.target
 """)
         print(f"  wrote {unit_dir}/{name}")
+    # The desktop entries, with this checkout's path baked in.
+    apps = os.path.expanduser("~/.local/share/applications")
+    os.makedirs(apps, exist_ok=True)
+    for name in ("jarvis.desktop", "jarvis-companion.desktop"):
+        source = os.path.join(ROOT, "setup", "app", name)
+        if not os.path.exists(source):
+            continue
+        with open(source) as fh:
+            body = fh.read().replace("JARVIS_ROOT_PLACEHOLDER", ROOT)
+        with open(os.path.join(apps, name), "w") as fh:
+            fh.write(body)
+        print(f"  wrote {apps}/{name}")
+
     print("\n  systemctl --user daemon-reload")
-    print("  systemctl --user enable --now jarvis-watch jarvis-presence")
+    print("  systemctl --user enable --now jarvis jarvis-watch jarvis-presence")
+    print(f"\n{DIM}the companion window needs one KWin rule, imported once:{OFF}")
+    print("  System Settings -> Window Management -> Window Rules -> Import")
+    print(f"  {ROOT}/setup/app/jarvis-companion.kwinrule")
+    print(f"\n{DIM}then bind a global shortcut to:{OFF}")
+    print(f"  {ROOT}/setup/app/jarvis-window companion")
     return 0
 
 
@@ -729,6 +809,8 @@ def main() -> int:
             ("design", cmd_design, True),
             ("figures", cmd_figures, True),
             ("author", cmd_author, True),
+            ("serve", cmd_serve, False), ("app", cmd_app, False),
+            ("companion", cmd_companion, False),
             ("figure-bench", cmd_figure_bench, True),
             ("chat", cmd_chat, False),
             ("bench", cmd_bench, True), ("mcp", cmd_mcp, False),
@@ -748,6 +830,8 @@ def main() -> int:
         sub.choices[name].add_argument(
             "--manifold", default="",
             help="a manifold part.yaml, for the flow-network analysis")
+    sub.choices["serve"].add_argument("--port", default="",
+                                      help="default 8787")
     sub.choices["author"].add_argument("--model", default="",
                                        help="which local model to ask")
     sub.choices["author"].add_argument("--build", action="store_true",

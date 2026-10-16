@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Opens a JARVIS window. Both front ends are this script with a different mode.
+#
+#   jarvis-window app          a normal application window
+#   jarvis-window companion    a small pinned window that follows you around
+#
+# There is no Electron and no Tauri here on purpose. The page is already served
+# by the daemon on loopback, so a browser in app mode is a real window with its
+# own icon, its own taskbar entry and no second runtime to install or update.
+# The two modes differ only in the window class, which is what KWin's rules key
+# off — one codebase, two behaviours.
+set -euo pipefail
+
+MODE="${1:-app}"
+PORT="${JARVIS_PORT:-8787}"
+URL="http://127.0.0.1:${PORT}/"
+
+case "$MODE" in
+  app)        CLASS=jarvis;           SIZE=1280,860 ;;
+  companion)  CLASS=jarvis-companion; SIZE=460,720 ;;
+  *) echo "usage: jarvis-window [app|companion]" >&2; exit 2 ;;
+esac
+
+if ! curl -sf --max-time 2 "${URL}api/state" >/dev/null; then
+  echo "JARVIS is not running on ${PORT}." >&2
+  echo "  systemctl --user start jarvis    (or: jarvis serve)" >&2
+  exit 1
+fi
+
+for browser in chromium chromium-browser google-chrome brave-browser microsoft-edge; do
+  if command -v "$browser" >/dev/null 2>&1; then
+    exec "$browser" --app="$URL" --class="$CLASS" --window-size="$SIZE" \
+         --user-data-dir="${XDG_DATA_HOME:-$HOME/.local/share}/jarvis/$CLASS"
+  fi
+done
+
+# Firefox has no --app, but a kiosk-ish window with its own profile is close.
+if command -v firefox >/dev/null 2>&1; then
+  PROFILE="${XDG_DATA_HOME:-$HOME/.local/share}/jarvis/$CLASS"
+  mkdir -p "$PROFILE"
+  exec firefox --no-remote --profile "$PROFILE" --class "$CLASS" --new-window "$URL"
+fi
+
+echo "no browser found. Open $URL yourself, or install chromium." >&2
+exit 1

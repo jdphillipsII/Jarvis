@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=JARVIS Companion
+Comment=The small window that follows you around
+Exec=JARVIS_ROOT_PLACEHOLDER/setup/app/jarvis-window companion
+Icon=utilities-system-monitor
+Terminal=false
+Categories=Utility;
+NoDisplay=false
+StartupWMClass=jarvis-companion

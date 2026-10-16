@@ -1,0 +1,28 @@
+[General]
+count=1
+rules=jarvis-companion
+
+[jarvis-companion]
+Description=JARVIS companion — pinned, no titlebar, every desktop
+wmclass=jarvis-companion
+wmclassmatch=1
+wmclasscomplete=false
+# above everything, including full-screen work
+above=true
+aboverule=2
+# not in the task switcher or the taskbar: it is furniture, not a task
+skiptaskbar=true
+skiptaskbarrule=2
+skipswitcher=true
+skipswitcherrule=2
+skippager=true
+skippagerrule=2
+# on every desktop and every activity, which is what "follows me" means
+desktops=\x00
+desktopsrule=2
+# no decoration, since the page draws its own frame
+noborder=true
+noborderrule=2
+# never steals focus from what you are doing
+fsplevel=4
+fsplevelrule=2

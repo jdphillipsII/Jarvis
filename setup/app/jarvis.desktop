@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=JARVIS
+Comment=The command surface
+Exec=JARVIS_ROOT_PLACEHOLDER/setup/app/jarvis-window app
+Icon=utilities-system-monitor
+Terminal=false
+Categories=Utility;
+StartupWMClass=jarvis
