@@ -20,6 +20,9 @@ jarvis = "cli:main"
 
 [tool.setuptools]
 packages = ["core", "daemon", "daemon.toolbox", "vision", "voice"]
+# cli is a top-level module, not a package. Without this the `jarvis` script
+# declared above installs and then fails to import — which it did.
+py-modules = ["cli"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -7,6 +7,7 @@
     jarvis bridges         borrowed MCP servers: what is classified, what is not
     jarvis archetypes [id]  the design library: what is proven, and how it fails
     jarvis figures [slug]   explanatory figures, and whether their numbers still hold
+    jarvis link            put `jarvis` on PATH (run once, via python3 cli.py link)
     jarvis serve           the one JARVIS: every surface is a view of it
     jarvis app             open the application window
     jarvis companion       open the small pinned window
@@ -61,6 +62,9 @@ def cmd_doctor(_) -> int:
         if not good and hint:
             print(f"  {DIM}{'':<28} -> {hint}{OFF}")
             failures += 1
+
+    check("jarvis on PATH", linked(),
+          f"python3 {ROOT}/cli.py link")
 
     groups = subprocess.run(["id", "-nG"], capture_output=True, text=True).stdout.split()
     check("render/video groups", {"render", "video"} <= set(groups),
@@ -457,6 +461,60 @@ def cmd_figure_bench(a) -> int:
     return 0
 
 
+LAUNCHER = """#!/usr/bin/env bash
+# Written by `jarvis link`. Re-run it after moving the checkout.
+#
+# The venv is resolved at run time rather than baked in, so creating it later
+# is enough — this does not need regenerating when the audio stack arrives.
+ROOT="{root}"
+PY="$ROOT/.venvs/voice/bin/python"
+[ -x "$PY" ] || PY="$(command -v python3)"
+exec "$PY" "$ROOT/cli.py" "$@"
+"""
+
+
+def launcher_body(root: str) -> str:
+    return LAUNCHER.format(root=root)
+
+
+def bin_dir() -> str:
+    return os.path.expanduser("~/.local/bin")
+
+
+def linked() -> bool:
+    """Is `jarvis` on PATH and pointing at this checkout?"""
+    found = shutil.which("jarvis")
+    if not found:
+        return False
+    try:
+        with open(found) as fh:
+            return f'ROOT="{ROOT}"' in fh.read()
+    except OSError:
+        return False
+
+
+def cmd_link(_) -> int:
+    """Put `jarvis` on PATH. Bootstrap with: python3 cli.py link"""
+    where = bin_dir()
+    os.makedirs(where, exist_ok=True)
+    target = os.path.join(where, "jarvis")
+    with open(target, "w") as fh:
+        fh.write(launcher_body(ROOT))
+    os.chmod(target, 0o755)
+    print(f"  wrote {target}")
+
+    on_path = any(os.path.realpath(p) == os.path.realpath(where)
+                  for p in os.environ.get("PATH", "").split(os.pathsep) if p)
+    if on_path:
+        print(f"\n{GREEN}jarvis is on PATH{OFF} — try: jarvis doctor")
+        return 0
+    print(f"\n{RED}{where} is not on PATH{OFF}")
+    print("  add it for this shell and every future one:")
+    print(f'    echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.bashrc')
+    print("    source ~/.bashrc")
+    return 0
+
+
 def cmd_serve(a) -> int:
     """Run the one JARVIS. Every other surface is a client of this."""
     from daemon.service import DEFAULT_PORT, Jarvis, serve
@@ -729,7 +787,11 @@ def cmd_watch(_) -> int:
     return 0
 
 
-def cmd_install(_) -> int:
+def cmd_install(a) -> int:
+    # Put the command on PATH first: every instruction printed below assumes
+    # `jarvis` exists, and for a long time it did not.
+    cmd_link(a)
+    print()
     unit_dir = os.path.expanduser("~/.config/systemd/user")
     os.makedirs(unit_dir, exist_ok=True)
     py = _venv_python()
@@ -809,6 +871,7 @@ def main() -> int:
             ("design", cmd_design, True),
             ("figures", cmd_figures, True),
             ("author", cmd_author, True),
+            ("link", cmd_link, False),
             ("serve", cmd_serve, False), ("app", cmd_app, False),
             ("companion", cmd_companion, False),
             ("figure-bench", cmd_figure_bench, True),

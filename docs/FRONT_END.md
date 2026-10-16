@@ -1,8 +1,15 @@
 # Where JARVIS lives
 
+    python3 ~/jarvis/cli.py link            once: puts `jarvis` on PATH
+    jarvis install                          units, desktop entries, the rest
     systemctl --user enable --now jarvis    the one process
     jarvis app                              the application window
     jarvis companion                        the small window that follows you
+
+The first line is the bootstrap and only needs running once. `jarvis` is a
+four-line launcher in `~/.local/bin` that resolves the venv at run time and
+execs this checkout's `cli.py`, so creating the audio venv later does not
+require regenerating it, and moving the checkout means re-running `link`.
 
 ---
 
