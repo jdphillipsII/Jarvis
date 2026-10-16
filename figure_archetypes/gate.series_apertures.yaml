@@ -1,0 +1,30 @@
+id: gate.series_apertures
+relationship: >-
+  several conditions that must all pass, in a fixed order, where the first
+  refusal ends it and the later ones never run
+object: >-
+  Three upright plates in series on one rail, each with an aperture. A token
+  travels the rail and only reaches the far end when every aperture is open.
+moves: >-
+  The token advances gate by gate and stops at the first closed aperture. The
+  gates behind it are irrelevant; the gates ahead of it never see it.
+readout: which gate the call is at, and why it stopped
+needs: [conditions_all_required, conditions_ordered]
+rules_out: [conditions_any]
+bindings:
+  - the conditions, in their real order
+  - what each one refuses, in its own words
+  - what the thing travelling the rail is
+teaches: >-
+  Order is not an implementation detail. A cheap check in front of an expensive
+  one is a different machine from the reverse, and a check that never runs
+  cannot be relied upon.
+cannot_show: >-
+  Conditions evaluated together rather than in sequence, and anything where
+  failing one gate routes elsewhere instead of stopping — that is a sorter.
+seen_as:
+  - JARVIS's tool gate — agency, then schema, then consent
+  - a request passing auth, then rate limit, then quota
+  - an enzyme cascade where each step requires the previous product
+genome: figures/tool-gate/genome.yaml
+status: built

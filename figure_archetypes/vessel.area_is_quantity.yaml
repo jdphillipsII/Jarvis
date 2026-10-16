@@ -1,0 +1,30 @@
+id: vessel.area_is_quantity
+relationship: >-
+  a quantity that varies with one variable, and accumulates as that variable
+  moves — so the total is the area under it
+object: >-
+  A graduated vessel standing on a bench, whose cross-sectional area at any
+  height is the quantity at that value of the variable.
+moves: >-
+  The level rises as you pour in. Height is the variable; the volume beneath
+  the level is the accumulated total. Where the vessel is wide, a lot goes in
+  for very little rise.
+readout: the variable at the level, and the quantity there
+needs: [varies_with_one, accumulates]
+rules_out: [conditions_all_required, matches_a_key]
+bindings:
+  - a function q(x) and the range of x worth showing
+  - units for both, so the readout is true
+  - what "pouring in" means in the subject
+teaches: >-
+  Where the quantity is large the variable barely moves, and a peak is somewhere
+  you cannot sit, because absorbing is what carries you out of it.
+cannot_show: >-
+  Anything with two independent variables — the vessel has one axis. Also
+  nothing discontinuous: a step in q(x) becomes a cliff in the wall that reads
+  as a manufacturing seam rather than a jump.
+seen_as:
+  - CO2 specific heat against temperature near the Widom line
+  - a progressive tax schedule, where area is tax paid
+  - memory per request against concurrency
+status: proposed

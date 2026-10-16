@@ -1,0 +1,28 @@
+id: balance.two_against_each_other
+relationship: >-
+  two desirable things in opposition, where more of one is necessarily less of
+  the other
+object: >-
+  An equal-arm balance with a sliding poise. Each pan carries one of the two,
+  and the poise sets where along the beam you have chosen to stand.
+moves: >-
+  Sliding the poise tips the beam. There is no position where both pans are
+  high, and the beam shows why rather than asserting it.
+readout: the position of the poise and what each side reads there
+needs: [trade_off]
+rules_out: [accumulates, conditions_ordered]
+bindings:
+  - the two quantities, with units
+  - the curve relating them, since a straight beam implies a linear trade
+  - where the current design sits on it
+teaches: >-
+  That the choice is a position, not an achievement — and where on the beam the
+  cost of moving starts to rise steeply.
+cannot_show: >-
+  Three-way trades, and cases where both can genuinely improve together. A
+  balance asserts opposition; if the opposition is not real it lies.
+seen_as:
+  - precision against recall
+  - a separable blur — two ways of doing the same job at different cost
+  - stiffness against mass in a bracket
+status: proposed

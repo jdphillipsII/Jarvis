@@ -1,0 +1,28 @@
+id: plotter.one_head_many_sites
+relationship: >-
+  one resource serving many clients in turn, so that waiting is caused by the
+  resource being elsewhere
+object: >-
+  A gantry plotter over a tray of wells. One head travels, dips into a well,
+  and moves on.
+moves: >-
+  The head visits wells in order. A well that wants attention while the head is
+  across the tray simply waits, and the wait is visible as distance.
+readout: which well is being served, and the longest wait outstanding
+needs: [shared_resource, many_clients]
+rules_out: [matches_a_key]
+bindings:
+  - what the one resource is, and what it does at each site
+  - how many sites, and whether the order is fixed or chosen
+  - what waiting costs
+teaches: >-
+  Contention is geometry. Nothing is broken and nobody is slow; the head is
+  simply somewhere else, and that is the entire explanation of the latency.
+cannot_show: >-
+  Pre-emption or priority without extra parts, and parallelism — the moment
+  there are two heads this is a different machine.
+seen_as:
+  - one shared GPU context serving many canvases
+  - a single-threaded event loop
+  - one technician and a bank of instruments
+status: proposed

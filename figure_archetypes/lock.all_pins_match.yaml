@@ -1,0 +1,28 @@
+id: lock.all_pins_match
+relationship: >-
+  passing depends on a pattern matching exactly, not on any quantity being big
+  enough — and every element must match at once
+object: >-
+  A pin-tumbler lock with its face cut away. Each pin sits at the height its
+  own element demands; when every pin reaches the shear line the plug turns.
+moves: >-
+  A key slides in and lifts the pins. One pin short and the plug does not move
+  at all — there is no partial turn.
+readout: how many pins match, and whether the plug turned
+needs: [matches_a_key, conditions_all_required]
+rules_out: [conditions_ordered, varies_with_one]
+bindings:
+  - the elements of the key, and what each one is
+  - what turning the plug causes to happen
+  - what a near-miss costs, if anything
+teaches: >-
+  All-or-nothing. Nine of ten pins is worth exactly as much as none of them,
+  which is why a cache key with one field missing is not a cache at all.
+cannot_show: >-
+  Degrees of similarity. A fuzzy or weighted match has no shear line, and
+  drawing one implies a sharpness the subject does not have.
+seen_as:
+  - a cache key that skips work when nothing changed
+  - an enzyme needing every cofactor present
+  - multi-factor authentication
+status: proposed

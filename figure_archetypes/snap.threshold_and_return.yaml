@@ -1,0 +1,28 @@
+id: snap.threshold_and_return
+relationship: >-
+  nothing happens as a level rises, until it crosses a point and everything
+  happens at once — and the level to come back is not the level that went
+object: >-
+  An over-centre toggle: a spring-loaded lever on a cam, with a pointer on a
+  scale showing where it trips and where it resets.
+moves: >-
+  The lever creeps, resists, then snaps. Backing off does not un-snap it until
+  the pointer has fallen well below where it tripped.
+readout: the level, the trip point, and the reset point
+needs: [threshold]
+rules_out: [conditions_ordered, matches_a_key]
+bindings:
+  - the level being watched, with units
+  - the trip point and the reset point, which are not the same number
+  - what the snap causes
+teaches: >-
+  The gap between trip and reset is the design, not an imperfection. Narrow it
+  and the mechanism chatters; widen it and it responds late.
+cannot_show: >-
+  A gradual response. If the output is proportional to the input there is no
+  snap, and drawing one invents a sharpness that will mislead.
+seen_as:
+  - a thermostat with its differential
+  - a Schmitt trigger
+  - a neuron's firing threshold and refractory period
+status: proposed

@@ -1,0 +1,29 @@
+id: bucket.inflow_outflow
+relationship: >-
+  something that fills at one rate, empties at another, and has a ceiling past
+  which what arrives is lost
+object: >-
+  A bucket under a steady tap, with a spigot at the bottom and an overflow lip.
+  A float rides the level and a counter reads it.
+moves: >-
+  The level rises when the tap outruns the spigot and falls when it does not.
+  At the lip, water leaves over the side and is gone.
+readout: the level, and what has been lost over the lip
+needs: [accumulates, drains, has_ceiling]
+rules_out: [conditions_ordered, matches_a_key]
+bindings:
+  - the fill rate and what supplies it
+  - the drain rate and what consumes it
+  - the ceiling, and whether exceeding it loses or queues
+teaches: >-
+  A burst passes and a steady overload does not. The ceiling sets how much
+  burst is forgiven; the drain sets what is sustainable. They are different
+  numbers and people conflate them.
+cannot_show: >-
+  Priority among the things drawing from it — the spigot does not know who is
+  pulling. Use a sorter when who-gets-served is the point.
+seen_as:
+  - a token-bucket rate limiter
+  - a capacitor across a supply rail
+  - a reservoir with inflow, draw and a spillway
+status: proposed

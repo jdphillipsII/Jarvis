@@ -1,0 +1,28 @@
+id: drawers.depth_is_size
+relationship: >-
+  a fixed set of distinct things that differ chiefly in one measurable
+  dimension
+object: >-
+  A chest of drawers in one carcass, each drawer as deep as the thing it
+  stands for, with a scale down the side.
+moves: >-
+  A drawer slides out to its own depth and the scale reads it. Pulled together,
+  the differences are a single glance.
+readout: the named item and its measure
+needs: [discrete_set, differ_in_one_dimension]
+rules_out: [accumulates, feedback]
+bindings:
+  - the items, named
+  - the one dimension, with units
+  - whether the order is meaningful or alphabetical
+teaches: >-
+  Relative magnitude, seen rather than read. A table of seven numbers is seven
+  facts; seven drawers is one.
+cannot_show: >-
+  Two dimensions at once — a second varying property turns the carcass into a
+  chart and loses the reason to draw a machine at all.
+seen_as:
+  - seven render targets with different bytes per texel
+  - the instruction mix of a workload
+  - isotope abundances in a sample
+status: proposed

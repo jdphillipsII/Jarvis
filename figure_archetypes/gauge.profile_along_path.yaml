@@ -1,0 +1,28 @@
+id: gauge.profile_along_path
+relationship: >-
+  a quantity sampled at many points along a path, where the shape of the
+  variation is the thing worth seeing
+object: >-
+  A contour gauge — a comb of sliding pins in a stock — pressed against an edge
+  so the pins take its profile.
+moves: >-
+  The gauge presses on and each pin rides to its own depth. Lift it away and
+  the shape stays.
+readout: the position along the path, and the value there
+needs: [varies_along_path]
+rules_out: [conditions_ordered, matches_a_key]
+bindings:
+  - the path, and what moving along it means
+  - the quantity at each point, with units
+  - the resolution worth showing, since the pins are discrete
+teaches: >-
+  Shape over value. Where it is flat, where it turns, and where a reading was
+  taken between two pins and is therefore interpolation rather than measurement.
+cannot_show: >-
+  Anything that varies in time while being sampled — the gauge records one
+  pass, and animating the pins implies a history it does not have.
+seen_as:
+  - a height profile along an edge
+  - a temperature traverse across a cold plate
+  - a spectrum sampled at fixed intervals
+status: proposed

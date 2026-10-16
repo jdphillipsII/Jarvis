@@ -131,10 +131,14 @@ README.
    added: declaration order *is* painter's order, and nothing can float.
    What it does not yet do is craft: ticks that land on rules, apertures cut
    rather than drawn, and any motion at all. 48 of 50 line ends float.
-3. **The archetype library for figures** ← next. Name the vessel we already built,
-   add the bucket (inflow, outflow, overflow) and the gate (parts that must
-   align). Selection with a real "nothing fits".
-4. **The local model front end** — grammar-constrained emission, scored by
+3. ~~**The archetype library for figures**~~ — **done.**
+   `core/figure_archetypes.py` + nine entries, indexed by the shape of the
+   relationship rather than by subject, because not one of anatomy's own
+   objects belongs to the subject it explains. The model characterises a
+   mechanism in a closed trait vocabulary and the library matches; it never
+   invents or picks an object. Three answers: matched, nothing fits, and no
+   mechanism. See [FIGURE_ARCHETYPES.md](FIGURE_ARCHETYPES.md).
+4. **The local model front end** ← next. Grammar-constrained emission, scored by
    `bench.py` against genomes we have hand-written.
 5. **The loop** — emit, compile, `lines.mjs`, `--audit`, feed failures back.
    Deterministic failures mean the model gets told exactly what to fix.
