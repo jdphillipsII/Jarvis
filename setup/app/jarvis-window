@@ -54,7 +54,9 @@ if ! awake; then
   if ! wait_awake 24; then
     echo "JARVIS did not come up on ${PORT}." >&2
     echo >&2
-    systemctl --user status jarvis --no-pager --lines=12 2>&1 | sed 's/^/  /' >&2
+    # journalctl, not `systemctl status`: a unit in auto-restart shows no log
+    # lines in its status, which is exactly when you need them most.
+    journalctl --user -u jarvis -n 20 --no-pager 2>&1 | sed 's/^/  /' >&2
     echo >&2
     echo "  run it in the foreground to see why:  jarvis serve" >&2
     exit 1

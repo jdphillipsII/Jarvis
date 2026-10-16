@@ -111,3 +111,40 @@ def test_the_stream_opens_with_the_current_state(running):
                                 timeout=5) as stream:
         first = stream.readline().decode()
     assert first.startswith("data: ") and "actuator" in first
+
+
+# ---- the collision that killed the service 150 ms after systemd started it ----
+
+def test_a_held_port_is_named_rather_than_a_bare_oserror():
+    """`Address already in use` says nothing about which address or whose."""
+    import socket as socket_module
+    from daemon.service import PortBusy
+
+    held = socket_module.socket()
+    held.setsockopt(socket_module.SOL_SOCKET, socket_module.SO_REUSEADDR, 1)
+    held.bind(("127.0.0.1", 0))
+    held.listen(1)
+    port = held.getsockname()[1]
+    jarvis = Jarvis(toolbox=Toolbox(registry=ToolRegistry(),
+                                    agency=Agency.ADVISORY),
+                    state=HudState(), token="t")
+    try:
+        with pytest.raises(PortBusy) as caught:
+            serve(jarvis, port=port)
+        assert str(port) in str(caught.value)
+        assert f"sport = :{port}" in caught.value.hint()
+    finally:
+        held.close()
+
+
+def test_the_service_and_the_standalone_hud_do_not_want_the_same_port():
+    """They both defaulted to 8787, so enabling jarvis-watch stopped the
+    service from ever binding."""
+    import inspect
+
+    import hud.server as hud_server
+    from daemon.service import DEFAULT_PORT
+
+    hud_default = inspect.signature(hud_server.serve).parameters["port"].default
+    assert hud_default != DEFAULT_PORT
+    assert DEFAULT_PORT == 8787, "the service owns the front door"

@@ -535,10 +535,18 @@ def cmd_link(_) -> int:
 
 def cmd_serve(a) -> int:
     """Run the one JARVIS. Every other surface is a client of this."""
-    from daemon.service import DEFAULT_PORT, Jarvis, serve
+    from daemon.service import DEFAULT_PORT, Jarvis, PortBusy, serve
     port = int(a.port or DEFAULT_PORT)
     jarvis = Jarvis.start()
-    server = serve(jarvis, port=port)
+    try:
+        server = serve(jarvis, port=port)
+    except PortBusy as busy:
+        print(f"{RED}{busy}{OFF}")
+        print(f"  {DIM}find what holds it:{OFF} {busy.hint()}")
+        print(f"  {DIM}the old standalone HUD used this port too; "
+              f"`jarvis watch` now uses 8788{OFF}")
+        print(f"  {DIM}or run elsewhere:{OFF} jarvis serve --port 8790")
+        return 1
     tools = len(jarvis.toolbox.registry.available(jarvis.toolbox.agency))
     print(f"{GREEN}JARVIS{OFF} on http://127.0.0.1:{port}  "
           f"{DIM}agency {jarvis.toolbox.agency.name.lower()} · "
@@ -737,7 +745,7 @@ def cmd_chat(_) -> int:
 
 def cmd_hud(_) -> int:
     """Open the HUD in a browser (the daemon serves it)."""
-    port = os.environ.get("JARVIS_HUD_PORT", "8787")
+    port = os.environ.get("JARVIS_HUD_PORT", "8788")
     url = f"http://127.0.0.1:{port}/"
     print(f"opening {url}")
     print(f"{DIM}if nothing loads, start the daemon first: ./cli.py watch{OFF}")
@@ -773,7 +781,7 @@ def cmd_watch(_) -> int:
     hub = Hub(HudState())
     bus.subscribe("jarvis.*", hub.on_intent, "hud")
     bus.subscribe("presence.*", hub.on_presence, "hud-presence")
-    port = int(os.environ.get("JARVIS_HUD_PORT", "8787"))
+    port = int(os.environ.get("JARVIS_HUD_PORT", "8788"))
     try:
         serve(hub, port=port)
         print(f"{DIM}hud on http://127.0.0.1:{port}{OFF}")

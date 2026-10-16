@@ -153,7 +153,10 @@ def make_handler(hub: Hub):
     return Handler
 
 
-def serve(hub: Hub, host: str = "127.0.0.1", port: int = 8787) -> ThreadingHTTPServer:
+# 8788, not 8787: the service in daemon/service.py owns 8787 as the front door
+# every surface talks to, and two things defaulting to one port meant the
+# service died on bind about 150 ms after systemd started it.
+def serve(hub: Hub, host: str = "127.0.0.1", port: int = 8788) -> ThreadingHTTPServer:
     httpd = ThreadingHTTPServer((host, port), make_handler(hub))
     httpd.daemon_threads = True
     threading.Thread(target=httpd.serve_forever, daemon=True,

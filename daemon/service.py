@@ -33,6 +33,18 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+class PortBusy(OSError):
+    """Something already holds the port. Named, because the bare OSError says
+    'Address already in use' and nothing about which address or whose."""
+
+    def __init__(self, host: str, port: int):
+        self.host, self.port = host, port
+        super().__init__(f"{host}:{port} is already in use")
+
+    def hint(self) -> str:
+        return f"ss -ltnp 'sport = :{self.port}'"
+
+
 STATE_DIR = os.path.expanduser("~/.local/state/jarvis")
 TOKEN_FILE = os.path.join(STATE_DIR, "token")
 DEFAULT_PORT = 8787
@@ -365,7 +377,12 @@ def serve(jarvis: Jarvis, host: str = "127.0.0.1", port: int = DEFAULT_PORT,
             finally:
                 hub.unsubscribe(channel)
 
-    server = ThreadingHTTPServer((host, port), Handler)
+    try:
+        server = ThreadingHTTPServer((host, port), Handler)
+    except OSError as exc:
+        if exc.errno in (98, 48):            # EADDRINUSE on Linux, macOS
+            raise PortBusy(host, port) from exc
+        raise
     server.daemon_threads = True
     server.jarvis = jarvis          # type: ignore[attr-defined]
     server.hub = hub                # type: ignore[attr-defined]
