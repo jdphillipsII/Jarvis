@@ -55,3 +55,46 @@ def test_packaging_declares_the_module_the_script_imports():
         body = fh.read()
     assert 'jarvis = "cli:main"' in body
     assert 'py-modules = ["cli"]' in body
+
+
+# ---- the other half of the dual boot ----
+#
+# The engine is portable; only the layer that puts a command on PATH and runs
+# something at login is not. These pin that layer to both shapes.
+
+def test_the_launcher_has_a_shape_for_each_half_of_the_dual_boot():
+    posix = cli.launcher_body("/home/jp/jarvis", "posix")
+    windows = cli.launcher_body(r"C:\Users\jp\jarvis", "windows")
+    assert posix.startswith("#!/usr/bin/env bash")
+    assert windows.startswith("@echo off")
+    assert cli.launcher_name("posix") == "jarvis"
+    assert cli.launcher_name("windows") == "jarvis.cmd"
+
+
+def test_the_windows_launcher_resolves_its_venv_at_run_time_too():
+    body = cli.launcher_body(r"C:\jarvis", "windows")
+    assert r".venvs\Scripts\python.exe" in body.replace("\\voice", "")
+    assert 'if not exist "%PY%" set "PY=python"' in body
+    assert '"%ROOT%\\cli.py" %*' in body
+
+
+def test_each_half_puts_the_command_where_that_os_looks():
+    assert cli.bin_dir("posix").endswith(os.path.join(".local", "bin"))
+    windows = cli.bin_dir("windows")
+    assert windows.endswith(os.path.join("Programs", "jarvis"))
+
+
+def test_windows_gets_a_window_launcher_of_its_own():
+    cmd = os.path.join(cli.ROOT, "setup", "app", "jarvis-window.cmd")
+    assert os.path.exists(cmd), "the Linux launcher is bash and will not run"
+    body = open(cmd).read()
+    assert "--app=" in body and "msedge.exe" in body
+    assert "jarvis install" in body, "it should say how to fix a missing install"
+
+
+def test_the_posix_only_checks_are_behind_a_platform_test():
+    """doctor used to shell out to `id -nG` and systemctl unconditionally."""
+    source = open(os.path.join(cli.ROOT, "cli.py")).read()
+    guard = source.index('if host() == "windows":')
+    assert guard < source.index('"id", "-nG"')
+    assert guard < source.index("systemctl\", \"--user\", \"is-active\"")

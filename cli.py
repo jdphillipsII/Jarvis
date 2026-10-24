@@ -76,26 +76,44 @@ def cmd_doctor(_) -> int:
           + (f"   ({probe.stderr.strip().splitlines()[-1]})"
              if probe.stderr.strip() else ""))
 
-    unit = os.path.expanduser("~/.config/systemd/user/jarvis.service")
-    check("jarvis.service", os.path.exists(unit), "jarvis install")
-    if os.path.exists(unit):
-        active = subprocess.run(["systemctl", "--user", "is-active", "jarvis"],
-                                capture_output=True, text=True).stdout.strip()
-        check("jarvis running", active == "active",
-              "systemctl --user enable --now jarvis")
+    if host() == "windows":
+        startup = os.path.join(os.environ.get("APPDATA", ""), "Microsoft",
+                               "Windows", "Start Menu", "Programs", "Startup",
+                               "jarvis.cmd")
+        check("starts at login", os.path.exists(startup), "jarvis install")
+        check("ollama", shutil.which("ollama") is not None,
+              "https://ollama.com/download/windows")
+        from core.client import Client, NotRunning
+        try:
+            running = Client().running()
+        except NotRunning:
+            running = False
+        check("jarvis running", running, f'"{bin_dir()}\\jarvis.cmd" serve')
+    else:
+        unit = os.path.expanduser("~/.config/systemd/user/jarvis.service")
+        check("jarvis.service", os.path.exists(unit), "jarvis install")
+        if os.path.exists(unit):
+            active = subprocess.run(["systemctl", "--user", "is-active", "jarvis"],
+                                    capture_output=True, text=True).stdout.strip()
+            check("jarvis running", active == "active",
+                  "systemctl --user enable --now jarvis")
 
-    groups = subprocess.run(["id", "-nG"], capture_output=True, text=True).stdout.split()
-    check("render/video groups", {"render", "video"} <= set(groups),
-          "sudo usermod -aG video,render $USER  then reboot")
-    check("rocminfo", shutil.which("rocminfo") is not None,
-          "sudo dnf install -y rocminfo rocm-smi")
-    if shutil.which("rocminfo"):
-        info = subprocess.run(["rocminfo"], capture_output=True, text=True).stdout
-        check("gfx1100 (7900 XTX)", "gfx1100" in info, "GPU not visible to ROCm")
-    check("ollama", shutil.which("ollama") is not None,
-          "curl -fsSL https://ollama.com/install.sh | sh")
-    check("audio player", any(shutil.which(p) for p in ("pw-play", "paplay", "aplay")),
-          "sudo dnf install -y pipewire-utils")
+        groups = subprocess.run(["id", "-nG"], capture_output=True,
+                                text=True).stdout.split()
+        check("render/video groups", {"render", "video"} <= set(groups),
+              "sudo usermod -aG video,render $USER  then reboot")
+        check("rocminfo", shutil.which("rocminfo") is not None,
+              "sudo dnf install -y rocminfo rocm-smi")
+        if shutil.which("rocminfo"):
+            info = subprocess.run(["rocminfo"], capture_output=True,
+                                  text=True).stdout
+            check("gfx1100 (7900 XTX)", "gfx1100" in info,
+                  "GPU not visible to ROCm")
+        check("ollama", shutil.which("ollama") is not None,
+              "curl -fsSL https://ollama.com/install.sh | sh")
+        check("audio player",
+              any(shutil.which(p) for p in ("pw-play", "paplay", "aplay")),
+              "sudo dnf install -y pipewire-utils")
     check("voice venv", os.path.exists(os.path.join(ROOT, ".venvs/voice/bin/python")),
           "bash setup/voice-setup.sh")
     try:
@@ -479,6 +497,19 @@ def cmd_figure_bench(a) -> int:
     return 0
 
 
+# ---- where the command goes, on either half of the dual boot ----------------
+#
+# The engine is portable: the service, the toolbox, the archetypes, the
+# compiler and the MCP server are stdlib plus pyyaml and requests, and run
+# unchanged on Windows. Everything that is NOT portable lives here, in the
+# layer that puts a command on PATH and starts something at login — so this is
+# the only part that has to know which OS it woke up on.
+
+
+def host() -> str:
+    return "windows" if os.name == "nt" else "posix"
+
+
 LAUNCHER = """#!/usr/bin/env bash
 # Written by `jarvis link`. Re-run it after moving the checkout.
 #
@@ -491,11 +522,31 @@ exec "$PY" "$ROOT/cli.py" "$@"
 """
 
 
-def launcher_body(root: str) -> str:
-    return LAUNCHER.format(root=root)
+LAUNCHER_CMD = """@echo off
+rem Written by `jarvis link`. Re-run it after moving the checkout.
+rem The venv is resolved at run time, so creating it later is enough.
+set "ROOT={root}"
+set "PY=%ROOT%\\.venvs\\voice\\Scripts\\python.exe"
+if not exist "%PY%" set "PY=python"
+"%PY%" "%ROOT%\\cli.py" %*
+"""
 
 
-def bin_dir() -> str:
+def launcher_body(root: str, platform: Optional[str] = None) -> str:
+    template = LAUNCHER_CMD if (platform or host()) == "windows" else LAUNCHER
+    return template.format(root=root)
+
+
+def launcher_name(platform: Optional[str] = None) -> str:
+    return "jarvis.cmd" if (platform or host()) == "windows" else "jarvis"
+
+
+def bin_dir(platform: Optional[str] = None) -> str:
+    if (platform or host()) == "windows":
+        # No ~/.local/bin on Windows. %LOCALAPPDATA%\Programs is the
+        # conventional per-user place for a command, and needs no admin.
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "Programs", "jarvis")
     return os.path.expanduser("~/.local/bin")
 
 
@@ -515,21 +566,28 @@ def cmd_link(_) -> int:
     """Put `jarvis` on PATH. Bootstrap with: python3 cli.py link"""
     where = bin_dir()
     os.makedirs(where, exist_ok=True)
-    target = os.path.join(where, "jarvis")
-    with open(target, "w") as fh:
+    target = os.path.join(where, launcher_name())
+    with open(target, "w", newline="\r\n" if host() == "windows" else "\n") as fh:
         fh.write(launcher_body(ROOT))
-    os.chmod(target, 0o755)
+    if host() != "windows":
+        os.chmod(target, 0o755)
     print(f"  wrote {target}")
 
-    on_path = any(os.path.realpath(p) == os.path.realpath(where)
+    on_path = any(os.path.normcase(os.path.realpath(p))
+                  == os.path.normcase(os.path.realpath(where))
                   for p in os.environ.get("PATH", "").split(os.pathsep) if p)
     if on_path:
         print(f"\n{GREEN}jarvis is on PATH{OFF} — try: jarvis doctor")
         return 0
     print(f"\n{RED}{where} is not on PATH{OFF}")
-    print("  add it for this shell and every future one:")
-    print(f'    echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.bashrc')
-    print("    source ~/.bashrc")
+    if host() == "windows":
+        print("  add it for every future shell:")
+        print(f'    setx PATH "%PATH%;{where}"')
+        print("  then open a new terminal.")
+    else:
+        print("  add it for this shell and every future one:")
+        print(f'    echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.bashrc')
+        print("    source ~/.bashrc")
     return 0
 
 
@@ -813,11 +871,41 @@ def cmd_watch(_) -> int:
     return 0
 
 
+def _install_windows() -> int:
+    """No systemd. A .cmd in the Startup folder runs at login, needs no admin,
+    and is the nearest honest equivalent of a user unit."""
+    startup = os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows",
+                           "Start Menu", "Programs", "Startup")
+    os.makedirs(startup, exist_ok=True)
+    launcher = os.path.join(bin_dir(), "jarvis.cmd")
+    target = os.path.join(startup, "jarvis.cmd")
+    with open(target, "w", newline="\r\n") as fh:
+        fh.write("@echo off\r\n"
+                 "rem Written by `jarvis install`. Delete to stop autostart.\r\n"
+                 f'start "" /min "{launcher}" serve\r\n')
+    print(f"  wrote {target}")
+
+    window = os.path.join(ROOT, "setup", "app", "jarvis-window.cmd")
+    if os.path.exists(window):
+        shortcut = os.path.join(startup, "..", "JARVIS.cmd")
+        with open(os.path.normpath(shortcut), "w", newline="\r\n") as fh:
+            fh.write(f'@echo off\r\nstart "" "{window}" app\r\n')
+        print(f"  wrote {os.path.normpath(shortcut)}")
+
+    print(f"\n  it starts at your next login, or now with:")
+    print(f'    "{launcher}" serve')
+    print(f"\n{DIM}voice, presence and gestures are Linux-side for now — "
+          f"see docs/WINDOWS.md{OFF}")
+    return 0
+
+
 def cmd_install(a) -> int:
     # Put the command on PATH first: every instruction printed below assumes
     # `jarvis` exists, and for a long time it did not.
     cmd_link(a)
     print()
+    if host() == "windows":
+        return _install_windows()
     unit_dir = os.path.expanduser("~/.config/systemd/user")
     os.makedirs(unit_dir, exist_ok=True)
     py = _venv_python()
