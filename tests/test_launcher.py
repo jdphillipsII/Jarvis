@@ -178,3 +178,34 @@ def test_the_path_check_reads_the_stored_variable_not_this_process():
     body = inspect.getsource(cli._on_user_path)
     assert "powershell" in body and '"User"' in body
     assert "os.environ" not in body, "this process's PATH is not what a new shell sees"
+
+
+# ---- what a service that lives on a machine should look like ----
+
+def test_the_windows_autostart_uses_the_console_less_interpreter():
+    """A .cmd keeps a console window for the service's whole life — minimised,
+    but in the taskbar, every login, forever."""
+    source = open(os.path.join(cli.ROOT, "cli.py")).read()
+    install = source[source.index("def _install_windows"):]
+    install = install[:install.index("\ndef ")]
+    assert "_pythonw()" in install
+    assert "/min" not in install, "minimising a console is not the same as not having one"
+
+
+def test_a_silent_start_still_leaves_somewhere_to_look():
+    """pythonw swallows output, so without the redirect a failed start at
+    login is completely silent."""
+    source = open(os.path.join(cli.ROOT, "cli.py")).read()
+    install = source[source.index("def _install_windows"):]
+    install = install[:install.index("\ndef ")]
+    assert "serve.log" in install and "2>&1" in install
+
+
+def test_doctor_points_at_that_log_when_it_exists():
+    source = open(os.path.join(cli.ROOT, "cli.py")).read()
+    assert "last start wrote" in source
+
+
+def test_pythonw_falls_back_rather_than_producing_a_broken_command():
+    runner = cli._pythonw()
+    assert runner.endswith(("pythonw.exe", "pythonw", "python.exe"))

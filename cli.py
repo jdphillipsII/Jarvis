@@ -83,11 +83,15 @@ def cmd_doctor(_) -> int:
         check("ollama", shutil.which("ollama") is not None,
               "https://ollama.com/download/windows")
         from core.client import Client, NotRunning
+        from daemon.service import state_dir
         try:
             running = Client().running()
         except NotRunning:
             running = False
-        check("jarvis running", running, f'"{bin_dir()}\\jarvis.cmd" serve')
+        log = os.path.join(state_dir(), "serve.log")
+        check("jarvis running", running,
+              f'"{bin_dir()}\\jarvis.cmd" serve'
+              + (f"   (last start wrote {log})" if os.path.exists(log) else ""))
     else:
         unit = os.path.expanduser("~/.config/systemd/user/jarvis.service")
         check("jarvis.service", os.path.exists(unit), "jarvis install")
@@ -948,19 +952,44 @@ def cmd_watch(_) -> int:
     return 0
 
 
+def _pythonw() -> str:
+    """The console-less interpreter, when there is one.
+
+    A background service launched through a .cmd keeps a console window for
+    its whole life — minimised, but in the taskbar, every login, forever. That
+    is not what a thing living permanently on a machine should look like.
+    pythonw.exe has no console at all.
+    """
+    candidate = os.path.join(ROOT, ".venvs", "voice", "Scripts", "pythonw.exe")
+    if os.path.exists(candidate):
+        return candidate
+    found = shutil.which("pythonw")
+    return found or os.path.join(ROOT, ".venvs", "voice", "Scripts", "python.exe")
+
+
 def _install_windows() -> int:
     """No systemd. A .cmd in the Startup folder runs at login, needs no admin,
     and is the nearest honest equivalent of a user unit."""
+    from daemon.service import state_dir
+
     startup = os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows",
                            "Start Menu", "Programs", "Startup")
     os.makedirs(startup, exist_ok=True)
     launcher = os.path.join(bin_dir(), "jarvis.cmd")
+
+    # No console window, and somewhere to look when it dies — pythonw swallows
+    # output, so without the redirect a failed start is completely silent.
+    log_dir = state_dir()
+    os.makedirs(log_dir, exist_ok=True)
+    log = os.path.join(log_dir, "serve.log")
     target = os.path.join(startup, "jarvis.cmd")
     with open(target, "w", newline="\r\n") as fh:
         fh.write("@echo off\r\n"
                  "rem Written by `jarvis install`. Delete to stop autostart.\r\n"
-                 f'start "" /min "{launcher}" serve\r\n')
+                 f'start "" "{_pythonw()}" "{os.path.join(ROOT, "cli.py")}" '
+                 f'serve > "{log}" 2>&1\r\n')
     print(f"  wrote {target}")
+    print(f"  {DIM}its output goes to {log}{OFF}")
 
     window = os.path.join(ROOT, "setup", "app", "jarvis-window.cmd")
     if os.path.exists(window):
