@@ -165,6 +165,11 @@ jarvis app
 `jarvis install` writes the Startup entry, so from the next login it is simply
 there. `jarvis app` starts the service if it is not already up.
 
+The Startup entry runs the service through `pythonw.exe`, which has no console
+at all — no window in the taskbar, nothing to close by accident. Its output
+goes to `%LOCALAPPDATA%\jarvis\serve.log` instead, which is where to look when
+JARVIS is not answering and you did not see it fail.
+
 ### 8. The companion window
 
 ```powershell
@@ -183,6 +188,7 @@ here, and a natively pinned window would mean writing one.
 |---|---|
 | `'jarvis' is not recognized` | the terminal predates the PATH change, or step 4 did not take. Neither blocks you — use the direct form above |
 | service exits immediately | run `jarvis serve` in the foreground — it prints the reason |
+| it died at login, silently | `Get-Content $env:LOCALAPPDATA\jarvis\serve.log -Tail 40` |
 | `127.0.0.1:8787 is already in use` | something else holds it; `jarvis serve --port 8790` |
 | `ModuleNotFoundError: yaml` | step 3 went into the wrong Python. `jarvis doctor` checks the one the launcher picks |
 | `git is not recognized`, just after installing git | the shell predates the PATH change. New terminal, or the reload two-liner in step 1 |
