@@ -76,8 +76,17 @@ py -3.12 -m venv .venvs\voice
 .\.venvs\voice\Scripts\python.exe cli.py link
 ```
 
-It prints a PowerShell line that adds the directory to your PATH. Run it, then
-open a new terminal — or reload with the two-liner from step 1.
+It writes the launcher and prints one line to add that directory to your PATH.
+Run the line, or let it do it:
+
+```powershell
+.\.venvs\voice\Scripts\python.exe cli.py link --path
+```
+
+Either way, **open a new terminal afterwards** — a running shell does not see
+a PATH change. Changing your PATH is behind a flag rather than something
+`link` does on its own, because it is a mutation; but printing half an
+instruction and leaving the rest to you is worse, so both are offered.
 
 > Do not use `setx PATH "%PATH%;..."`. `%PATH%` in a running shell is the
 > system and user paths already joined, so that writes the whole thing back

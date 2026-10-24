@@ -108,5 +108,30 @@ def test_the_windows_path_advice_is_not_the_setx_footgun():
                if "print(" in line]
     assert not [line for line in printed if "setx" in line], \
         "it is explained in a comment; it must never be recommended"
-    assert any("SetEnvironmentVariable" in line for line in printed)
-    assert any('"User"' in line for line in printed)
+    assert any("_WINDOWS_PATH_LINE" in line for line in printed), \
+        "the safe form is what gets shown"
+    assert "SetEnvironmentVariable" in cli._WINDOWS_PATH_LINE
+
+
+def test_the_windows_path_advice_is_one_pasteable_line():
+    """PowerShell runs the first line of a pasted block on its own, so a
+    wrapped call is a way to half-apply a PATH change."""
+    assert "\n" not in cli._WINDOWS_PATH_LINE
+    assert cli._WINDOWS_PATH_LINE.count("(") == cli._WINDOWS_PATH_LINE.count(")")
+    assert cli._WINDOWS_PATH_LINE.startswith("[Environment]::SetEnvironmentVariable")
+    assert '"User")' in cli._WINDOWS_PATH_LINE
+
+
+def test_the_path_change_reads_and_writes_user_scope_only():
+    line = cli._WINDOWS_PATH_LINE
+    assert 'GetEnvironmentVariable("Path","User")' in line
+    assert "Machine" not in line, "reading the machine path would duplicate it"
+
+
+def test_changing_path_is_a_flag_and_never_a_side_effect_of_link():
+    """Changing someone's PATH is a mutation, and this repo does not do those
+    unasked — but doing half the job and printing the other half is worse."""
+    source = open(os.path.join(cli.ROOT, "cli.py")).read()
+    assert "add_to_path_windows" in source
+    assert 'getattr(a, "path", False)' in source
+    assert '"--path", action="store_true"' in source

@@ -562,7 +562,24 @@ def linked() -> bool:
         return False
 
 
-def cmd_link(_) -> int:
+_WINDOWS_PATH_LINE = (
+    '[Environment]::SetEnvironmentVariable("Path", '
+    '[Environment]::GetEnvironmentVariable("Path","User") + '
+    '";$env:LOCALAPPDATA\\Programs\\jarvis", "User")')
+
+
+def add_to_path_windows() -> str:
+    """Append our directory to the USER PATH, reading and writing user scope
+    only. Returns what it did, or why it did not."""
+    done = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", _WINDOWS_PATH_LINE],
+        capture_output=True, text=True)
+    if done.returncode != 0:
+        return (done.stderr or "powershell refused").strip().splitlines()[-1]
+    return ""
+
+
+def cmd_link(a) -> int:
     """Put `jarvis` on PATH. Bootstrap with: python3 cli.py link"""
     where = bin_dir()
     os.makedirs(where, exist_ok=True)
@@ -572,6 +589,17 @@ def cmd_link(_) -> int:
     if host() != "windows":
         os.chmod(target, 0o755)
     print(f"  wrote {target}")
+
+    if getattr(a, "path", False) and host() == "windows":
+        # An explicit flag, not a side effect of `link`: changing someone's
+        # PATH is a mutation, and this repo does not do those unasked.
+        problem = add_to_path_windows()
+        if problem:
+            print(f"\n{RED}could not set PATH{OFF}: {problem}")
+        else:
+            print(f"\n{GREEN}added to your user PATH{OFF} — "
+                  f"open a new terminal, then: jarvis doctor")
+            return 0
 
     on_path = any(os.path.normcase(os.path.realpath(p))
                   == os.path.normcase(os.path.realpath(where))
@@ -585,11 +613,13 @@ def cmd_link(_) -> int:
         # which is system+user joined, and writes the whole thing back into
         # the user variable — duplicating the system path and truncating at
         # 1024 characters. It is the classic way to lose your PATH.
-        print("  add it for every future shell (PowerShell, user scope only):")
-        print('    [Environment]::SetEnvironmentVariable("Path",')
-        print('      [Environment]::GetEnvironmentVariable("Path","User")'
-              f' + ";{where}", "User")')
-        print("  then open a new terminal.")
+        #
+        # One line, because PowerShell will run the first line of a pasted
+        # block on its own and a wrapped call is a way to half-apply this.
+        print("  add it, in PowerShell — one line, user scope only:")
+        print(f"    {_WINDOWS_PATH_LINE}")
+        print(f"\n  or let this do it:  jarvis link --path")
+        print("  either way, open a new terminal afterwards.")
     else:
         print("  add it for this shell and every future one:")
         print(f'    echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.bashrc')
@@ -1013,6 +1043,9 @@ def main() -> int:
         sub.choices[name].add_argument(
             "--manifold", default="",
             help="a manifold part.yaml, for the flow-network analysis")
+    sub.choices["link"].add_argument("--path", action="store_true",
+                                     help="also add it to your user PATH "
+                                          "(Windows)")
     sub.choices["serve"].add_argument("--port", default="",
                                       help="default 8787")
     sub.choices["author"].add_argument("--model", default="",
