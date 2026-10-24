@@ -15,26 +15,45 @@ puts a command on PATH and starts something at login.
 
 ## The walkthrough
 
-Everything below is in a normal Command Prompt unless it says PowerShell.
+**In PowerShell**, which is what Windows opens by default. The commands differ
+from Command Prompt in three ways that bite immediately: environment variables
+are `$env:NAME` and not `%NAME%`, a program in the current directory needs a
+`.\` in front of it, and `copy` is `Copy-Item`.
+
+### 0. Where not to put it
+
+Your Desktop is inside OneDrive. Do not clone there — OneDrive will try to
+sync `.git`, the vendored anatomy skill and eventually a multi-gigabyte venv,
+and it will be slow about it. `$env:USERPROFILE` is `C:\Users\James`, which
+OneDrive does not redirect, so the commands below land outside it.
 
 ### 1. The two prerequisites
 
-```
+```powershell
 winget install Git.Git
 winget install Python.Python.3.12
 ```
 
 **Not the Microsoft Store Python.** It redirects `%LOCALAPPDATA%` writes into a
 per-app sandbox, which is exactly where the launcher and the token go.
-`pyproject.toml` pins `>=3.11,<3.13`, so 3.12 is the one to take.
+`pyproject.toml` pins `>=3.11,<3.13`, so 3.12 is the one.
 
-Close the terminal and open a new one, so both land on PATH.
+**Then open a new terminal.** winget puts these on PATH, and a shell that was
+already running does not see it — which is what `git is not recognized` means
+when you have just installed git. To avoid reopening, reload it in place:
+
+```powershell
+$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+            [Environment]::GetEnvironmentVariable("Path","User")
+```
+
+Check both arrived: `git --version` and `py -0p`
 
 ### 2. Clone
 
-```
-git clone https://github.com/jdphillipsII/Jarvis.git %USERPROFILE%\jarvis
-cd %USERPROFILE%\jarvis
+```powershell
+git clone https://github.com/jdphillipsII/Jarvis.git $env:USERPROFILE\jarvis
+cd $env:USERPROFILE\jarvis
 ```
 
 ### 3. The environment
@@ -42,10 +61,10 @@ cd %USERPROFILE%\jarvis
 `setup/install.sh` is bash and will not run here, so this is it by hand. The
 path matters: the launcher looks for the venv at exactly `.venvs\voice`.
 
-```
+```powershell
 py -3.12 -m venv .venvs\voice
-.venvs\voice\Scripts\python -m pip install --upgrade pip
-.venvs\voice\Scripts\pip install pyyaml requests numpy CoolProp
+.\.venvs\voice\Scripts\python.exe -m pip install --upgrade pip
+.\.venvs\voice\Scripts\pip.exe install pyyaml requests numpy CoolProp
 ```
 
 `pyyaml` and `requests` are what the service cannot start without. `numpy` and
@@ -53,12 +72,12 @@ py -3.12 -m venv .venvs\voice
 
 ### 4. Put `jarvis` on PATH
 
-```
-.venvs\voice\Scripts\python cli.py link
+```powershell
+.\.venvs\voice\Scripts\python.exe cli.py link
 ```
 
-It prints a PowerShell line to add the directory to your PATH. Run that in
-**PowerShell**, then open a new terminal.
+It prints a PowerShell line that adds the directory to your PATH. Run it, then
+open a new terminal — or reload with the two-liner from step 1.
 
 > Do not use `setx PATH "%PATH%;..."`. `%PATH%` in a running shell is the
 > system and user paths already joined, so that writes the whole thing back
@@ -72,8 +91,8 @@ Check it took: `jarvis doctor`
 `config/jarvis.env` is gitignored, so Windows has only the example. The code
 falls back to the example, but you want your own:
 
-```
-copy config\jarvis.env.example config\jarvis.env
+```powershell
+Copy-Item config\jarvis.env.example config\jarvis.env
 notepad config\jarvis.env
 ```
 
@@ -88,7 +107,7 @@ JARVIS_HEAVY_MODEL=
 
 ### 6. The model
 
-```
+```powershell
 winget install Ollama.Ollama
 ollama pull qwen3.5:35b-a3b
 ```
@@ -102,7 +121,7 @@ the first prompt.
 
 ### 7. Install and run
 
-```
+```powershell
 jarvis install
 jarvis doctor
 jarvis app
@@ -113,7 +132,7 @@ there. `jarvis app` starts the service if it is not already up.
 
 ### 8. The companion window
 
-```
+```powershell
 winget install Microsoft.PowerToys
 jarvis companion
 ```
@@ -131,6 +150,9 @@ here, and a natively pinned window would mean writing one.
 | service exits immediately | run `jarvis serve` in the foreground — it prints the reason |
 | `127.0.0.1:8787 is already in use` | something else holds it; `jarvis serve --port 8790` |
 | `ModuleNotFoundError: yaml` | step 3 went into the wrong Python. `jarvis doctor` checks the one the launcher picks |
+| `git is not recognized`, just after installing git | the shell predates the PATH change. New terminal, or the reload two-liner in step 1 |
+| a folder literally named `%USERPROFILE%` | cmd syntax in PowerShell. `$env:USERPROFILE`, and `rmdir` the stray folder |
+| `is not recognized` for something in the current folder | PowerShell needs `.\` in front of it |
 | the model answers from the CPU | `ollama ps`; if it shows 100% CPU the layers did not fit — take a smaller tag |
 
 ## What changes, and why
