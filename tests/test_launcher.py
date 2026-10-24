@@ -135,3 +135,46 @@ def test_changing_path_is_a_flag_and_never_a_side_effect_of_link():
     assert "add_to_path_windows" in source
     assert 'getattr(a, "path", False)' in source
     assert '"--path", action="store_true"' in source
+
+
+# ---- PATH is a convenience, never a requirement ----
+
+def test_every_command_has_a_form_that_needs_no_path():
+    """`jarvis: not recognized` must never be a dead end: the checkout can
+    always be invoked directly."""
+    runner = cli._runner()
+    assert runner, "there is always a way to run it"
+    assert "cli.py" in cli._bootstrap_hint()
+
+
+def test_the_bootstrap_hint_is_runnable_on_the_host_it_prints_on():
+    """doctor used to suggest `python3 /path/cli.py link` on Windows, where
+    there is no python3 and the slashes are wrong."""
+    hint = cli._bootstrap_hint()
+    if cli.host() == "windows":
+        assert "python3" not in hint and "\\" in hint
+    else:
+        assert hint.startswith("python3") or ".venvs" in hint
+
+
+def test_the_runner_prefers_the_venv_the_launcher_would_use():
+    runner = cli._runner().strip('"')
+    venv = os.path.join(cli.ROOT, ".venvs", "voice")
+    if os.path.exists(venv):
+        assert runner.startswith(venv)
+
+
+def test_setting_path_is_verified_rather_than_assumed():
+    """powershell can return 0 and not have changed anything. Telling someone
+    to open a new terminal that will not help is the worst outcome."""
+    source = open(os.path.join(cli.ROOT, "cli.py")).read()
+    assert "_on_user_path" in source
+    assert "PATH was written but does not contain it" in source
+    assert 'GetEnvironmentVariable("Path","User")' in source
+
+
+def test_the_path_check_reads_the_stored_variable_not_this_process():
+    import inspect
+    body = inspect.getsource(cli._on_user_path)
+    assert "powershell" in body and '"User"' in body
+    assert "os.environ" not in body, "this process's PATH is not what a new shell sees"

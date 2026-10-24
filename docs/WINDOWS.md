@@ -88,6 +88,32 @@ a PATH change. Changing your PATH is behind a flag rather than something
 `link` does on its own, because it is a mutation; but printing half an
 instruction and leaving the rest to you is worse, so both are offered.
 
+### PATH is a convenience, not a requirement
+
+If `jarvis` is still not recognised, nothing is blocked. Every command has a
+direct form, and they are identical in every way except typing:
+
+```powershell
+.\.venvs\voice\Scripts\python.exe cli.py install
+.\.venvs\voice\Scripts\python.exe cli.py doctor
+.\.venvs\voice\Scripts\python.exe cli.py serve
+```
+
+To see whether the PATH entry is actually stored — as opposed to visible in
+this shell, which is a different question:
+
+```powershell
+[Environment]::GetEnvironmentVariable("Path","User") -split ';' | Select-String jarvis
+```
+
+If that prints the path, it is set and only this terminal is behind. Reload it
+here rather than reopening:
+
+```powershell
+$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+            [Environment]::GetEnvironmentVariable("Path","User")
+```
+
 > Do not use `setx PATH "%PATH%;..."`. `%PATH%` in a running shell is the
 > system and user paths already joined, so that writes the whole thing back
 > into the *user* variable — duplicating the system half and truncating at
@@ -155,7 +181,7 @@ here, and a natively pinned window would mean writing one.
 
 | what you see | what it is |
 |---|---|
-| `'jarvis' is not recognized` | step 4, or the terminal predates the PATH change |
+| `'jarvis' is not recognized` | the terminal predates the PATH change, or step 4 did not take. Neither blocks you — use the direct form above |
 | service exits immediately | run `jarvis serve` in the foreground — it prints the reason |
 | `127.0.0.1:8787 is already in use` | something else holds it; `jarvis serve --port 8790` |
 | `ModuleNotFoundError: yaml` | step 3 went into the wrong Python. `jarvis doctor` checks the one the launcher picks |

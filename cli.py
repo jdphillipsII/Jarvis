@@ -63,8 +63,7 @@ def cmd_doctor(_) -> int:
             print(f"  {DIM}{'':<28} -> {hint}{OFF}")
             failures += 1
 
-    check("jarvis on PATH", linked(),
-          f"python3 {ROOT}/cli.py link")
+    check("jarvis on PATH", linked(), _bootstrap_hint())
 
     # The launcher picks this interpreter, so check THAT one can import what
     # the service needs — not whichever python happens to be running doctor.
@@ -550,6 +549,21 @@ def bin_dir(platform: Optional[str] = None) -> str:
     return os.path.expanduser("~/.local/bin")
 
 
+def _runner() -> str:
+    """How to invoke this checkout without `jarvis` existing. Every command
+    works this way; PATH is a convenience, never a requirement."""
+    venv = os.path.join(ROOT, ".venvs", "voice",
+                        "Scripts" if host() == "windows" else "bin",
+                        "python.exe" if host() == "windows" else "python")
+    if os.path.exists(venv):
+        return f'"{venv}"' if " " in venv else venv
+    return "python" if host() == "windows" else "python3"
+
+
+def _bootstrap_hint() -> str:
+    return f"{_runner()} {os.path.join(ROOT, 'cli.py')} link --path"
+
+
 def linked() -> bool:
     """Is `jarvis` on PATH and pointing at this checkout?"""
     found = shutil.which("jarvis")
@@ -566,6 +580,20 @@ _WINDOWS_PATH_LINE = (
     '[Environment]::SetEnvironmentVariable("Path", '
     '[Environment]::GetEnvironmentVariable("Path","User") + '
     '";$env:LOCALAPPDATA\\Programs\\jarvis", "User")')
+
+
+def _on_user_path(where: str) -> bool:
+    """Read the stored user PATH, not this process's — the point is what a
+    NEW shell will see."""
+    done = subprocess.run(
+        ["powershell", "-NoProfile", "-Command",
+         '[Environment]::GetEnvironmentVariable("Path","User")'],
+        capture_output=True, text=True)
+    if done.returncode != 0:
+        return False
+    return any(os.path.normcase(part.strip().rstrip("\\"))
+               == os.path.normcase(where.rstrip("\\"))
+               for part in done.stdout.split(";") if part.strip())
 
 
 def add_to_path_windows() -> str:
@@ -596,9 +624,17 @@ def cmd_link(a) -> int:
         problem = add_to_path_windows()
         if problem:
             print(f"\n{RED}could not set PATH{OFF}: {problem}")
+        elif not _on_user_path(where):
+            # It reported success and the variable does not contain it. Say so
+            # rather than send someone to open a terminal that will not help.
+            print(f"\n{RED}PATH was written but does not contain it{OFF}")
+            print(f"  check by hand: {_runner()} cli.py doctor")
         else:
-            print(f"\n{GREEN}added to your user PATH{OFF} — "
-                  f"open a new terminal, then: jarvis doctor")
+            print(f"\n{GREEN}added to your user PATH{OFF}")
+            print("  OPEN A NEW TERMINAL — this one cannot see it — then:")
+            print("    jarvis doctor")
+            print(f"\n{DIM}  or carry on here without PATH:{OFF}")
+            print(f"    {_runner()} cli.py install")
             return 0
 
     on_path = any(os.path.normcase(os.path.realpath(p))
@@ -618,8 +654,13 @@ def cmd_link(a) -> int:
         # block on its own and a wrapped call is a way to half-apply this.
         print("  add it, in PowerShell — one line, user scope only:")
         print(f"    {_WINDOWS_PATH_LINE}")
-        print(f"\n  or let this do it:  jarvis link --path")
-        print("  either way, open a new terminal afterwards.")
+        print(f"\n  or let this do it:  {_runner()} cli.py link --path")
+        print("  either way, OPEN A NEW TERMINAL — a running shell does not")
+        print("  see a PATH change.")
+        print(f"\n{DIM}  you do not have to wait for any of that. Every{OFF}")
+        print(f"{DIM}  command works without PATH:{OFF}")
+        print(f"    {_runner()} cli.py install")
+        print(f"    {_runner()} cli.py doctor")
     else:
         print("  add it for this shell and every future one:")
         print(f'    echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.bashrc')
