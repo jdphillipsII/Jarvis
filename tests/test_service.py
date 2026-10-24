@@ -186,3 +186,14 @@ def test_a_service_with_no_token_permits_nothing(jarvis):
     code, _ = Api(jarvis).handle("POST", "/api/invoke",
                                  {"tool": "system.status"}, token="")
     assert code == 403
+
+
+# ---- the other half of the dual boot ----
+
+def test_the_token_goes_where_each_os_keeps_such_things():
+    """~/.local/state is the XDG answer and means nothing on Windows, where a
+    dotted folder in the profile root is somewhere nothing looks."""
+    from daemon.service import state_dir
+    assert state_dir("posix").endswith("/.local/state/jarvis")
+    windows = state_dir("windows")
+    assert ".local" not in windows and windows.endswith("jarvis")

@@ -98,3 +98,15 @@ def test_the_posix_only_checks_are_behind_a_platform_test():
     guard = source.index('if host() == "windows":')
     assert guard < source.index('"id", "-nG"')
     assert guard < source.index("systemctl\", \"--user\", \"is-active\"")
+
+
+def test_the_windows_path_advice_is_not_the_setx_footgun():
+    """`setx PATH "%PATH%;..."` expands the joined system+user PATH and writes
+    it back into the user variable, duplicating the system half and truncating
+    at 1024 characters. It is the classic way to lose your PATH."""
+    printed = [line for line in open(os.path.join(cli.ROOT, "cli.py"))
+               if "print(" in line]
+    assert not [line for line in printed if "setx" in line], \
+        "it is explained in a comment; it must never be recommended"
+    assert any("SetEnvironmentVariable" in line for line in printed)
+    assert any('"User"' in line for line in printed)

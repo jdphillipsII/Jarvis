@@ -45,7 +45,20 @@ class PortBusy(OSError):
         return f"ss -ltnp 'sport = :{self.port}'"
 
 
-STATE_DIR = os.path.expanduser("~/.local/state/jarvis")
+def state_dir(platform: Optional[str] = None) -> str:
+    """Where the token lives, in the place each OS puts such things.
+
+    ~/.local/state is the XDG answer and means nothing on Windows, where a
+    dotted folder in the profile root is somewhere nothing looks and nothing
+    cleans up.
+    """
+    if (platform or ("windows" if os.name == "nt" else "posix")) == "windows":
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "jarvis")
+    return os.path.expanduser("~/.local/state/jarvis")
+
+
+STATE_DIR = state_dir()
 TOKEN_FILE = os.path.join(STATE_DIR, "token")
 DEFAULT_PORT = 8787
 
@@ -67,7 +80,10 @@ def write_token(path: str = TOKEN_FILE) -> str:
     token = secrets.token_urlsafe(24)
     with open(path, "w") as fh:
         fh.write(token + "\n")
-    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    if os.name != "nt":
+        # 0600 means nothing useful on Windows, where the profile directory
+        # already carries the ACL. Attempting it there just fails quietly.
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
     return token
 
 

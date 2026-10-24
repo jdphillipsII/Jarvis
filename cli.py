@@ -581,8 +581,14 @@ def cmd_link(_) -> int:
         return 0
     print(f"\n{RED}{where} is not on PATH{OFF}")
     if host() == "windows":
-        print("  add it for every future shell:")
-        print(f'    setx PATH "%PATH%;{where}"')
+        # NOT `setx PATH "%PATH%;..."`. That expands the CURRENT process PATH,
+        # which is system+user joined, and writes the whole thing back into
+        # the user variable — duplicating the system path and truncating at
+        # 1024 characters. It is the classic way to lose your PATH.
+        print("  add it for every future shell (PowerShell, user scope only):")
+        print('    [Environment]::SetEnvironmentVariable("Path",')
+        print('      [Environment]::GetEnvironmentVariable("Path","User")'
+              f' + ";{where}", "User")')
         print("  then open a new terminal.")
     else:
         print("  add it for this shell and every future one:")
